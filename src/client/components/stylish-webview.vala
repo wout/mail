@@ -14,7 +14,7 @@ public class StylishWebView : WebKit.WebView {
         set {
             _document_font = value;
             Pango.FontDescription font = Pango.FontDescription.from_string(value);
-            WebKit.WebSettings config = settings;
+            WebKit.Settings config = settings;
             config.default_font_family = font.get_family();
             config.default_font_size = font.get_size() / Pango.SCALE;
             settings = config;
@@ -30,7 +30,7 @@ public class StylishWebView : WebKit.WebView {
         set {
             _monospace_font = value;
             Pango.FontDescription font = Pango.FontDescription.from_string(value);
-            WebKit.WebSettings config = settings;
+            WebKit.Settings config = settings;
             config.monospace_font_family = font.get_family();
             config.default_monospace_font_size = font.get_size() / Pango.SCALE;
             settings = config;

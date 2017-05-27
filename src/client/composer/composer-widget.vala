@@ -143,55 +143,6 @@ public class ComposerWidget : Gtk.EventBox {
     private const string URI_LIST_MIME_TYPE = "text/uri-list";
     private const string FILE_URI_PREFIX = "file://";
     private const string BODY_ID = "message-body";
-    private const string HTML_BODY = """
-        <html><head><title></title>
-        <style>
-        body {
-            margin: 0px !important;
-            padding: 0 !important;
-            background-color: white !important;
-            font-size: medium !important;
-        }
-        body.plain, body.plain * {
-            font-family: monospace !important;
-            font-weight: normal;
-            font-style: normal;
-            font-size: medium !important;
-            color: black;
-            text-decoration: none;
-        }
-        body.plain a {
-            cursor: text;
-        }
-        #message-body {
-            box-sizing: border-box;
-            padding: 6px;
-            outline: 0px solid transparent;
-            min-height: 100%;
-        }
-        .embedded #message-body {
-            min-height: 200px;
-        }
-        blockquote {
-            margin-top: 0px;
-            margin-bottom: 0px;
-            margin-left: 12px;
-            margin-right: 12px;
-            padding-left: 6px;
-            padding-right: 6px;
-            background-color: white;
-            border: 0;
-            border-left: 3px #aaa solid;
-        }
-        pre {
-            white-space: pre-wrap;
-            margin: 0;
-        }
-        </style>
-        </head><body>
-        <div id="message-body" contenteditable="true"></div>
-        </body></html>""";
-    private const string CURSOR = "<span id=\"cursormarker\"></span></br>";
     
     private const int DRAFT_TIMEOUT_SEC = 10;
     
@@ -502,7 +453,7 @@ public class ComposerWidget : Gtk.EventBox {
 
         initialize_actions ();
 
-        editor.load_finished.connect(on_load_finished);
+        editor.load_changed.connect(on_load_changed);
         editor.hovering_over_link.connect(on_hovering_over_link);
         editor.context_menu.connect(on_context_menu);
         editor.move_focus.connect(update_actions);
@@ -518,8 +469,7 @@ public class ComposerWidget : Gtk.EventBox {
         // only do this after setting body_html
         editor.load_string(HTML_BODY, "text/html", "UTF8", "");
         
-        editor.navigation_policy_decision_requested.connect(on_navigation_policy_decision_requested);
-        editor.new_window_policy_decision_requested.connect(on_navigation_policy_decision_requested);
+        editor.decide_policy.connect(on_policy_decision_requested);
 
         // Font family menu items.
         font_sans = new Gtk.CheckMenuItem.with_mnemonic (_("S_ans Serif"));
@@ -556,7 +506,7 @@ public class ComposerWidget : Gtk.EventBox {
         extended_item = new Gtk.CheckMenuItem.with_mnemonic (_("Show Extended Fields"));
         extended_item.set_action_name (ACTION_GROUP_PREFIX + ACTION_SHOW_EXTENDED);
         
-        WebKit.WebSettings s = editor.settings;
+        WebKit.Settings s = editor.settings;
         s.enable_spell_checking = true;
         s.auto_load_images = false;
         s.enable_scripts = false;
@@ -750,50 +700,23 @@ public class ComposerWidget : Gtk.EventBox {
         }
     }
 
-    private void on_load_finished(WebKit.WebFrame frame) {
-        if (get_realized())
-            on_load_finished_and_realized();
-        else
-            realize.connect(on_load_finished_and_realized);
+    private void on_load_changed(WebKit.LoadEvent event) {
+        if (event == WebKit.LoadEvent.FINISHED) {
+            if (get_realized())
+                on_load_finished_and_realized();
+            else
+                realize.connect(on_load_finished_and_realized);
+        }
     }
     
     private void on_load_finished_and_realized() {
         // This is safe to call even when this connection hasn't been made.
         realize.disconnect(on_load_finished_and_realized);
-        WebKit.DOM.Document document = editor.get_dom_document();
-        WebKit.DOM.HTMLElement? body = document.get_element_by_id(BODY_ID) as WebKit.DOM.HTMLElement;
-        assert(body != null);
-
-        if (!Geary.String.is_empty(body_html)) {
-            try {
-                body.set_inner_html(body_html);
-            } catch (Error e) {
-                debug("Failed to load prefilled body: %s", e.message);
-            }
-        }
-        body.focus();  // Focus within the HTML document
-
-        // Set cursor at appropriate position
-        try {
-            WebKit.DOM.Element? cursor = document.get_element_by_id("cursormarker");
-            if (cursor != null) {
-                WebKit.DOM.Range range = document.create_range();
-                range.select_node_contents(cursor);
-                range.collapse(false);
-                WebKit.DOM.DOMSelection selection = document.default_view.get_selection();
-                selection.remove_all_ranges();
-                selection.add_range(range);
-                cursor.parent_element.remove_child(cursor);
-            }
-        } catch (Error error) {
-            debug("Error setting cursor at end of text: %s", error.message);
-        }
 
         protect_blockquote_styles();
         
         set_focus();  // Focus in the GTK widget hierarchy
 
-        bind_event(editor,"a", "click", (Callback) on_link_clicked, this);
         update_actions();
         this.actions.change_action_state (ACTION_SHOW_EXTENDED, false);
         this.actions.change_action_state (ACTION_COMPOSE_AS_HTML,
@@ -936,11 +859,7 @@ public class ComposerWidget : Gtk.EventBox {
         string? quote = null) {
         if (referred != null && quote != null && quote != last_quote) {
             last_quote = quote;
-            WebKit.DOM.Document document = editor.get_dom_document();
-            // Always use reply styling, since forward styling doesn't work for inline quotes
-            document.exec_command("insertHTML", false,
-                Geary.RFC822.Utils.quote_email_for_reply(referred, quote, Geary.RFC822.TextFormat.HTML));
-            
+                      
             if (!referred_ids.contains(referred.id)) {
                 add_recipients_and_ids(new_type, referred);
                 ensure_paned();
@@ -1656,71 +1575,9 @@ public class ComposerWidget : Gtk.EventBox {
         c.store();
     }
     
-    private WebKit.DOM.Node? get_left_text(WebKit.DOM.Node node, long offset) {
-        WebKit.DOM.Document document = editor.get_dom_document();
-        string node_value = node.node_value;
-
-        // Offset is in unicode characters, but index is in bytes. We need to get the corresponding
-        // byte index for the given offset.
-        int char_count = node_value.char_count();
-        int index = offset > char_count ? node_value.length : node_value.index_of_nth_char(offset);
-
-        return offset > 0 ? document.create_text_node(node_value[0:index]) : null;
-    }
-    
-    private void on_clipboard_text_received(Gtk.Clipboard clipboard, string? text) {
-        if (text == null)
-            return;
-        
-        // Insert plain text from clipboard.
-        WebKit.DOM.Document document = editor.get_dom_document();
-        document.exec_command("inserttext", false, text);
-    
-        // The inserttext command will not scroll if needed, but we can't use the clipboard
-        // for plain text. WebKit allows us to scroll a node into view, but not an arbitrary
-        // position within a text node. So we add a placeholder node at the cursor position,
-        // scroll to that, then remove the placeholder node.
-        try {
-            WebKit.DOM.DOMSelection selection = document.default_view.get_selection();
-            WebKit.DOM.Node selection_base_node = selection.get_base_node();
-            long selection_base_offset = selection.get_base_offset();
-            
-            WebKit.DOM.NodeList selection_child_nodes = selection_base_node.get_child_nodes();
-            WebKit.DOM.Node ref_child = selection_child_nodes.item(selection_base_offset);
-        
-            WebKit.DOM.Element placeholder = document.create_element("SPAN");
-            WebKit.DOM.Text placeholder_text = document.create_text_node("placeholder");
-            placeholder.append_child(placeholder_text);
-            
-            if (selection_base_node.node_name == "#text") {
-                WebKit.DOM.Node? left = get_left_text(selection_base_node, selection_base_offset);
-                
-                WebKit.DOM.Node parent = selection_base_node.parent_node;
-                if (left != null)
-                    parent.insert_before(left, selection_base_node);
-                parent.insert_before(placeholder, selection_base_node);
-                parent.remove_child(selection_base_node);
-                
-                placeholder.scroll_into_view_if_needed(false);
-                parent.insert_before(selection_base_node, placeholder);
-                if (left != null)
-                    parent.remove_child(left);
-                parent.remove_child(placeholder);
-                selection.set_base_and_extent(selection_base_node, selection_base_offset, selection_base_node, selection_base_offset);
-            } else {
-                selection_base_node.insert_before(placeholder, ref_child);
-                placeholder.scroll_into_view_if_needed(false);
-                selection_base_node.remove_child(placeholder);
-            }
-            
-        } catch (Error err) {
-            debug("Error scrolling pasted text into view: %s", err.message);
-        }
-    }
-    
     private void on_paste() {
         if (container.get_focus() == editor)
-            get_clipboard(Gdk.SELECTION_CLIPBOARD).request_text(on_clipboard_text_received);
+            editor.paste_clipboard ();
         else if (container.get_focus() is Gtk.Editable)
             ((Gtk.Editable) container.get_focus()).paste_clipboard();
     }
@@ -1751,19 +1608,8 @@ public class ComposerWidget : Gtk.EventBox {
         bool compose_as_html = new_state.get_boolean ();
         action.set_state (compose_as_html);
 
-        WebKit.DOM.DOMTokenList body_classes = editor.get_dom_document().body.get_class_list();
         toggle_toolbar_buttons (compose_as_html);
         build_menu (compose_as_html);
-
-        try {
-            if (!compose_as_html) {
-                body_classes.add("plain");
-            } else {
-                body_classes.remove("plain");
-            }
-        } catch (Error error) {
-            debug("Error setting composer style: %s", error.message);
-        }
 
         foreach (string html_action in html_actions) {
             get_action (html_action).set_enabled (compose_as_html);
@@ -1843,68 +1689,18 @@ public class ComposerWidget : Gtk.EventBox {
     
     private void on_indent (SimpleAction action, Variant? param) {
         on_action (action, param);
-
-        // Undo styling of blockquotes
-        try {
-            WebKit.DOM.NodeList node_list = editor.get_dom_document ().query_selector_all (
-                "blockquote[style=\"margin: 0 0 0 40px; border: none; padding: 0px;\"]");
-            for (int i = 0; i < node_list.length; ++i) {
-                WebKit.DOM.Element element = (WebKit.DOM.Element) node_list.item (i);
-                element.remove_attribute ("style");
-                element.set_attribute ("type", "cite");
-            }
-        } catch (Error error) {
-            debug ("Error removing blockquote style: %s", error.message);
-        }
     }
     
     private void protect_blockquote_styles() {
-        // We will search for an remove a particular styling when we quote text.  If that style
-        // exists in the quoted text, we alter it slightly so we don't mess with it later.
-        try {
-            WebKit.DOM.NodeList node_list = editor.get_dom_document().query_selector_all(
-                "blockquote[style=\"margin: 0 0 0 40px; border: none; padding: 0px;\"]");
-            for (int i = 0; i < node_list.length; ++i) {
-                ((WebKit.DOM.Element) node_list.item(i)).set_attribute("style", 
-                    "margin: 0 0 0 40px; padding: 0px; border:none;");
-            }
-        } catch (Error error) {
-            debug("Error protecting blockquotes: %s", error.message);
-        }
     }
     
     private void on_insert_link () {
         link_dialog ("http://");
     }
     
-    private static void on_link_clicked(WebKit.DOM.Element element, WebKit.DOM.Event event,
-        ComposerWidget composer) {
-        try {
-            composer.editor.get_dom_document().get_default_view().get_selection().
-                select_all_children(element);
-        } catch (Error e) {
-            debug("Error selecting link: %s", e.message);
-        }
-    }
-    
     private void link_dialog(string link) {
         Gtk.Dialog dialog = new Gtk.Dialog();
         bool existing_link = false;
-        
-        // Save information needed to re-establish selection
-        WebKit.DOM.DOMSelection selection = editor.get_dom_document().get_default_view().
-            get_selection();
-        WebKit.DOM.Node anchor_node = selection.anchor_node;
-        long anchor_offset = selection.anchor_offset;
-        WebKit.DOM.Node focus_node = selection.focus_node;
-        long focus_offset = selection.focus_offset;
-        
-        // Allow user to remove link if they're editing an existing one.
-        if (focus_node != null && (focus_node is WebKit.DOM.HTMLAnchorElement ||
-            focus_node.get_parent_element() is WebKit.DOM.HTMLAnchorElement)) {
-            existing_link = true;
-            dialog.add_buttons(Stock._REMOVE, Gtk.ResponseType.REJECT);
-        }
         
         dialog.add_buttons(Stock._CANCEL, Gtk.ResponseType.CANCEL, Stock._OK,
             Gtk.ResponseType.OK);
@@ -1945,32 +1741,19 @@ public class ComposerWidget : Gtk.EventBox {
             editor.get_dom_document().exec_command("unlink", false, "");
         
         dialog.destroy();
+    }
+    
+    private bool on_policy_decision_requested (WebKit.PolicyDecision decision, WebKit.PolicyDecisionType type) {
+        if (type = WebKit.PolicyDecisionType.NAVIGATION) {
+            policy_decision.ignore();
         
-        // Re-bind to anchor links.  This must be done every time link have changed.
-        bind_event(editor,"a", "click", (Callback) on_link_clicked, this);
-    }
-    
-    private string get_html() {
-        return ((WebKit.DOM.HTMLElement) editor.get_dom_document().get_element_by_id(BODY_ID))
-            .get_inner_html();
-    }
-    
-    private string get_text() {
-        return html_to_flowed_text((WebKit.DOM.HTMLElement) editor.get_dom_document()
-            .get_element_by_id(BODY_ID));
-    }
-    
-    private bool on_navigation_policy_decision_requested (WebKit.WebFrame frame,
-                                                          WebKit.NetworkRequest request, 
-                                                          WebKit.WebNavigationAction navigation_action,
-                                                          WebKit.WebPolicyDecision policy_decision) {
-        policy_decision.ignore();
-
-        if (actions.get_action_state (ACTION_COMPOSE_AS_HTML).get_boolean ()) {
-            link_dialog(request.uri);
+            if (actions.get_action_state (ACTION_COMPOSE_AS_HTML).get_boolean ()) {
+                link_dialog(request.uri);
+            }
+            return true;
         }
 
-        return true;
+        return false;
     }
     
     private void on_hovering_over_link (string? title, string? url) {
@@ -2152,30 +1935,6 @@ public class ComposerWidget : Gtk.EventBox {
             }
         }
         
-        WebKit.DOM.Document document = editor.get_dom_document();
-        if (event.keyval == Gdk.Key.Tab) {
-            document.exec_command("inserthtml", false,
-                "<span style='white-space: pre-wrap'>\t</span>");
-            return true;
-        }
-        
-        if (event.keyval == Gdk.Key.ISO_Left_Tab) {
-            // If there is no selection and the character before the cursor is tab, delete it.
-            WebKit.DOM.DOMSelection selection = document.get_default_view().get_selection();
-            if (selection.is_collapsed) {
-                selection.modify("extend", "backward", "character");
-                try {
-                    if (selection.get_range_at(0).get_text() == "\t")
-                        selection.delete_from_document();
-                    else
-                        selection.collapse_to_end();
-                } catch (Error error) {
-                    debug("Error handling Left Tab: %s", error.message);
-                }
-            }
-            return true;
-        }
-        
         return false;
     }
 
@@ -2197,55 +1956,6 @@ public class ComposerWidget : Gtk.EventBox {
         get_action (ACTION_PASTE).set_enabled (this.editor.can_paste_clipboard ());
         get_action (ACTION_PASTE_WITH_FORMATTING).set_enabled (this.editor.can_paste_clipboard ()
             && get_action (ACTION_COMPOSE_AS_HTML).state.get_boolean ());
-
-        // Style formatting actions.
-        WebKit.DOM.Document document = this.editor.get_dom_document ();
-        WebKit.DOM.DOMWindow window = document.get_default_view ();
-        WebKit.DOM.DOMSelection? selection = window.get_selection ();
-        if (selection == null)
-            return;
-
-        get_action (ACTION_REMOVE_FORMAT).set_enabled (!selection.is_collapsed
-            && get_action (ACTION_COMPOSE_AS_HTML).state.get_boolean ());
-
-        WebKit.DOM.Element? active = selection.focus_node as WebKit.DOM.Element;
-        if (active == null && selection.focus_node != null)
-            active = selection.focus_node.get_parent_element();
-
-        if (active != null) {
-            WebKit.DOM.CSSStyleDeclaration styles = window.get_computed_style(active, "");
-
-            actions.change_action_state (ACTION_BOLD, document.query_command_state ("bold"));
-            actions.change_action_state (ACTION_ITALIC, document.query_command_state ("italic"));
-            actions.change_action_state (ACTION_UNDERLINE, document.query_command_state ("underline"));
-            actions.change_action_state (ACTION_STRIKETHROUGH, document.query_command_state ("strikethrough"));
-
-            // Font family.
-            string font_name = styles.get_property_value("font-family").down();
-            if (font_name.contains("sans") ||
-                font_name.contains("arial") ||
-                font_name.contains("trebuchet") ||
-                font_name.contains("helvetica"))
-                actions.change_action_state (ACTION_FONT_FAMILY, "sans");
-            else if (font_name.contains("serif") ||
-                font_name.contains("georgia") ||
-                font_name.contains("times"))
-                actions.change_action_state (ACTION_FONT_FAMILY, "serif");
-            else if (font_name.contains("monospace") ||
-                font_name.contains("courier") ||
-                font_name.contains("console"))
-                actions.change_action_state (ACTION_FONT_FAMILY, "monospace");
-
-            // Font size.
-            int font_size;
-            styles.get_property_value("font-size").scanf("%dpx", out font_size);
-            if (font_size < 11)
-                actions.change_action_state (ACTION_FONT_SIZE, "small");
-            else if (font_size > 20)
-                actions.change_action_state (ACTION_FONT_SIZE, "large");
-            else
-                actions.change_action_state (ACTION_FONT_SIZE, "medium");
-        }
     }
     
     private bool add_account_emails_to_from_list(Geary.Account account, bool set_active = false) {

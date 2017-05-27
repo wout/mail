@@ -704,9 +704,9 @@ public class ConversationWidget : Gtk.ListBoxRow {
     }
 
     [CCode (instance_pos = -1)]
-    private bool on_policy_decision_requested (WebKit.PolicyDecision decision, WebKit.PolicyDecisionType type) {
-        decision.ignore ();
+    private bool on_policy_decision_requested (WebKit.PolicyDecision decision, WebKit.PolicyDecisionType type) {        
         if (type = WebKit.PolicyDecisionType.NAVIGATION) {
+            decision.ignore ();
             var navigation_action = (decision as WebKit.NavigationPolicyDecision).navigation_action;
             if (navigation_action.get_navigation_type () == WebKit.NavigationType.LINK_CLICKED)
                 link_selected (request.uri);
