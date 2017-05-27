@@ -467,10 +467,8 @@ public class ConversationWidget : Gtk.ListBoxRow {
 
         webview = new StylishWebView ();
         webview.expand = true;
-        webview.hovering_over_link.connect (on_hovering_over_link);
         webview.context_menu.connect (context_menu);
-        webview.key_press_event.connect ((event) => webview_key_press_event(event));
-        webview.resource_load_started.connect (st_starting);
+        webview.resource_load_started.connect (on_resource_request_starting);
         webview.decide_policy.connect (on_policy_decision_requested);
 
         attachments_box = new Gtk.FlowBox ();
@@ -631,19 +629,6 @@ public class ConversationWidget : Gtk.ListBoxRow {
         return false;
     }
 
-    private bool webview_key_press_event (Gdk.EventKey event) {
-        if ((event.state & Gdk.ModifierType.CONTROL_MASK) != 0) {
-            uint keycode = event.hardware_keycode;
-
-            if (match_keycode (Gdk.Key.c, keycode)) {
-                if (webview.can_copy_clipboard ()) {
-                    webview.copy_clipboard ();
-                }
-            }
-        }
-        return false;
-    }
-
     private bool header_key_press_event (Gdk.EventKey event) {
         if (event.state == 0 && event.keyval == Gdk.Key.KP_Enter && collapsable) {
             toggle_view ();
@@ -705,19 +690,14 @@ public class ConversationWidget : Gtk.ListBoxRow {
 
     [CCode (instance_pos = -1)]
     private bool on_policy_decision_requested (WebKit.PolicyDecision decision, WebKit.PolicyDecisionType type) {        
-        if (type = WebKit.PolicyDecisionType.NAVIGATION) {
+        if (type == WebKit.PolicyDecisionType.NAVIGATION_ACTION) {
             decision.ignore ();
             var navigation_action = (decision as WebKit.NavigationPolicyDecision).navigation_action;
             if (navigation_action.get_navigation_type () == WebKit.NavigationType.LINK_CLICKED)
-                link_selected (request.uri);
+                link_selected (navigation_action.get_request ().uri);
             return true;
         }
         return false;
-    }
-
-    [CCode (instance_pos = -1)]
-    private void on_hovering_over_link (string? title, string? url) {
-        hovering_over_link (title, url);
     }
 
     private void open_message () {
@@ -754,7 +734,7 @@ public class ConversationWidget : Gtk.ListBoxRow {
             var body_text = message.get_body (Geary.RFC822.TextFormat.HTML, inline_image_replacer) ?? "";
             bool remote_images;
             body_text = insert_html_markup (body_text, message, out remote_images);
-            webview.get_dom_document ().body.set_inner_html (body_text);
+            // TODO: Re-implement load
             if (remote_images) {
                 var contact = current_folder.account.get_contact_store ().get_by_rfc822 (email.get_primary_originator ());
                 bool always_load = contact != null && contact.always_load_remote_images ();
@@ -904,18 +884,8 @@ public class ConversationWidget : Gtk.ListBoxRow {
 
     private string insert_html_markup (string text, Geary.RFC822.Message message, out bool remote_images) {
         remote_images = false;
-        try {
-            
-            // TODO: Re-implement
-            
-        } catch (Error e) {
-            debug("Error modifying HTML message: %s", e.message);
-            return text;
-        }
-    }
-
-    private void wrap_html_signature () throws Error {
         // TODO: Re-implement
+        return "";
     }
 
     private bool should_show_attachment (Geary.Attachment attachment) {
@@ -968,7 +938,8 @@ public class ConversationWidget : Gtk.ListBoxRow {
     }
 
     private void on_print_message () {
-        webview.get_main_frame ().print ();
+        // TODO: What is this, does it need re-implementing        
+        //webview.get_main_frame ().print ();
     }
 
     private bool in_drafts_folder () {
@@ -1033,52 +1004,8 @@ public class ConversationWidget : Gtk.ListBoxRow {
     }
 
     [CCode (instance_pos = -1)]
-    private bool context_menu (Gtk.Widget default_menu, WebKit.HitTestResult hit_test_result, bool triggered_with_keyboard) {
-        var menu = new Gtk.Menu ();
-        menu.attach_widget = webview;
-        if (webview.can_copy_clipboard ()) {
-            // Add a menu item for copying the current selection.
-            var item = new Gtk.MenuItem.with_mnemonic (_("_Copy"));
-            menu.append (item);
-            item.activate.connect (() => webview.copy_clipboard ());
-        }
-
-        if (WebKit.HitTestResultContext.LINK in hit_test_result.context) {
-            if (hit_test_result.link_uri.has_prefix (Geary.ComposedEmail.MAILTO_SCHEME)) {
-                // Add a menu item for copying the address.
-                var item = new Gtk.MenuItem.with_mnemonic (_("Copy _Email Address"));
-                menu.append (item);
-                item.activate.connect (() => {
-                    var clipboard = Gtk.Clipboard.get (Gdk.SELECTION_CLIPBOARD);
-                    clipboard.set_text (hit_test_result.link_uri.substring (Geary.ComposedEmail.MAILTO_SCHEME.length, -1), -1);
-                    clipboard.store ();
-                });
-            } else {
-                // Add a menu item for copying the link.
-                var item = new Gtk.MenuItem.with_mnemonic (_("Copy _Link"));
-                menu.append (item);
-                item.activate.connect (() => {
-                    var clipboard = Gtk.Clipboard.get (Gdk.SELECTION_CLIPBOARD);
-                    clipboard.set_text (hit_test_result.link_uri, -1);
-                    clipboard.store ();
-                });
-            }
-        }
-
-        // Select all.
-        var select_all_item = new Gtk.MenuItem.with_mnemonic (_("Select _All"));
-        select_all_item.activate.connect (() => webview.select_all ());
-        menu.append (select_all_item);
-
-        // Inspect.
-        if (Args.inspector) {
-            var inspect_item = new Gtk.MenuItem.with_mnemonic (_("_Inspect"));
-            inspect_item.activate.connect (() => {webview.web_inspector.show ();});
-            menu.append (inspect_item);
-        }
-
-        menu.show_all ();
-        menu.popup (null, null, null, 0, Gtk.get_current_event_time ());
-        return true;
+    private bool context_menu (WebKit.ContextMenu context_menu, Gdk.Event event, WebKit.HitTestResult hit_test_result) {
+        // TODO: Re-implement 
+        return false;
     }
 }

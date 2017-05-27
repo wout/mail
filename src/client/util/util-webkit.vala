@@ -15,22 +15,6 @@ public const string PROTOCOL_REGEX = "^(aim|apt|bitcoin|cvs|ed2k|ftp|file|finger
 public const string QUOTE_START = "";
 public const string QUOTE_END = "";
 
-// Validates a URL.
-// Ensures the URL begins with a valid protocol specifier.  (If not, we don't
-// want to linkify it.)
-// Note that the output of this will place '\01' chars before and after a link,
-// which we use to split the string in linkify()
-private bool pre_split_urls(MatchInfo match_info, StringBuilder result) {
-    try {
-        string? url = match_info.fetch(0);
-        Regex r = new Regex(PROTOCOL_REGEX, RegexCompileFlags.CASELESS);
-        result.append(r.match(url) ? "\01%s\01".printf(url) : url);
-    } catch (Error e) {
-        debug("URL parsing error: %s\n", e.message);
-    }
-    return false; // False to continue processing.
-}
-
 // Validates a URL.  Intended to be used as a RegexEvalCallback.
 // Ensures the URL begins with a valid protocol specifier.  (If not, we don't
 // want to linkify it.)

@@ -118,15 +118,7 @@ public class ConversationFindBar : Gtk.Revealer {
             var conv_widget = (ConversationWidget) child;
             var webview = conv_widget.webview;
             if (latest_view == null || latest_view == webview) {
-                var found = webview.search_text (search_entry.text, case_check.active, next, false);
-                if (found) {
-                    // expand the view so that the result is shown.
-                    conv_widget.collapsed = false;
-                    latest_view = webview;
-                    return;
-                } else {
-                    latest_view = null;
-                }
+                // TODO: Re-implement search
             }
 
             if (next) {
@@ -147,9 +139,9 @@ public class ConversationFindBar : Gtk.Revealer {
     }
 
     private void mark_text_matches () {
+        // TODO: Re-implement
         var search = search_entry.text.strip ();
         if (search == "") {
-            unmark_text_matches ();
             next_button.sensitive = false;
             previous_button.sensitive = false;
             search_entry.get_style_context ().remove_class ("error");
@@ -162,11 +154,6 @@ public class ConversationFindBar : Gtk.Revealer {
             if (!(child is ConversationWidget)) {
                 return;
             }
-
-            var webview = ((ConversationWidget) child).webview;
-            webview.unmark_text_matches ();
-            matches += webview.mark_text_matches (search, case_check.active, 0);
-            webview.set_highlight_text_matches (true);
         });
 
         previous_button.sensitive = false;
@@ -182,13 +169,11 @@ public class ConversationFindBar : Gtk.Revealer {
     }
 
     private void unmark_text_matches () {
+        // TODO: Re-implement
         mail_list_box.get_children ().foreach ((child) => {
             if (!(child is ConversationWidget)) {
                 return;
             }
-
-            var webview = ((ConversationWidget) child).webview;
-            webview.unmark_text_matches ();
         });
     }
 }

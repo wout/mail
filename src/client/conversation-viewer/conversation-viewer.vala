@@ -507,13 +507,7 @@ public class ConversationViewer : Gtk.Stack {
                     return;
                 }
                 
-                var webview = ((ConversationWidget) child).webview;
-                webview.unmark_text_matches();
-                foreach(string match in ordered_matches) {
-                    webview.mark_text_matches(match, false, 0);
-                }
-                
-                webview.set_highlight_text_matches(true);
+                // TODO: Re-implement highlight
             });
         } catch (Error e) {
             debug("Error highlighting search results: %s", e.message);
@@ -752,11 +746,7 @@ public class ConversationViewer : Gtk.Stack {
             if (!(child is ConversationWidget)) {
                 return;
             }
-            
-            var webview = ((ConversationWidget) child).webview;
-            webview.set_highlight_text_matches(true);
-            ((ConversationWidget) child).collapsable = true;
-            webview.unmark_text_matches();
+            // TODO: Re-implement un-highlighting
         });
         
         if (search_folder != null) {
@@ -816,21 +806,15 @@ public class ConversationViewer : Gtk.Stack {
     }
     
     public void zoom_in() {
-        conversation_list_box.get_children().foreach((child) => {
-            ((ConversationWidget) child).webview.zoom_in();
-        });
+        // TODO: Re-implement
     }
     
     public void zoom_out() {
-        conversation_list_box.get_children().foreach((child) => {
-            ((ConversationWidget) child).webview.zoom_out();
-        });
+        // TODO: Re-implement
     }
     
     public void zoom_normal() {
-        conversation_list_box.get_children().foreach((child) => {
-            ((ConversationWidget) child).webview.zoom_level = 1.0f;
-        });
+        // TODO: Re-implement
     }
 }
 

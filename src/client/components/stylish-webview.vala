@@ -14,10 +14,10 @@ public class StylishWebView : WebKit.WebView {
         set {
             _document_font = value;
             Pango.FontDescription font = Pango.FontDescription.from_string(value);
-            WebKit.Settings config = settings;
+            WebKit.Settings config = get_settings ();
             config.default_font_family = font.get_family();
             config.default_font_size = font.get_size() / Pango.SCALE;
-            settings = config;
+            set_settings (config);
             document_font_changed();
         }
     }
@@ -30,10 +30,10 @@ public class StylishWebView : WebKit.WebView {
         set {
             _monospace_font = value;
             Pango.FontDescription font = Pango.FontDescription.from_string(value);
-            WebKit.Settings config = settings;
+            WebKit.Settings config = get_settings ();
             config.monospace_font_family = font.get_family();
             config.default_monospace_font_size = font.get_size() / Pango.SCALE;
-            settings = config;
+            set_settings (config);
             monospace_font_changed();
         }
     }
