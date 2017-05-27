@@ -476,6 +476,7 @@ pkg_check_modules(DEPS REQUIRED
     gmime-2.6>=2.6.17
     libsecret-1>=0.11
     libxml-2.0>=2.7.8
+    webkit2gtk-4.0
     gcr-3>=3.10.1
     gobject-introspection-1.0
     libaccounts-glib
@@ -488,7 +489,7 @@ set(ENGINE_PACKAGES
 )
 
 set(CLIENT_PACKAGES
-    gtk+-3.0 granite libsecret-1 libsoup-2.4 libcanberra gcr-3 ${EXTRA_CLIENT_PACKAGES}
+    gtk+-3.0 granite libsecret-1 libsoup-2.4 webkit2gtk-4.0 libcanberra gcr-3 ${EXTRA_CLIENT_PACKAGES}
 )
 
 set(CONSOLE_PACKAGES
