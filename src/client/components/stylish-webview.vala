@@ -5,6 +5,9 @@
  */
 
 public class StylishWebView : WebKit.WebView {
+
+    private int preferred_height = 0;
+    private MailWebViewExtension.Server extension;
     
     private string _document_font;
     public string document_font {
@@ -58,6 +61,17 @@ public class StylishWebView : WebKit.WebView {
         system_settings.bind("document-font-name", this, "document-font", SettingsBindFlags.DEFAULT);
         system_settings.bind("monospace-font-name", this, "monospace-font", SettingsBindFlags.DEFAULT);
         system_settings.bind("font-name", this, "interface-font", SettingsBindFlags.DEFAULT);
+
+        extension = Bus.get_proxy_sync (BusType.SESSION, "io.elementary.mail.WebKitExtension",
+                                                    "/io/elementary/mail/WebKitExtension");
+        load_changed.connect (on_load_changed);
+    }
+
+    public void on_load_changed (WebKit.LoadEvent event) {
+        if (event == WebKit.LoadEvent.FINISHED) {
+            preferred_height = (int) extension.get_page_height (get_page_id ());
+            queue_resize ();
+        }
     }
     
     public override void get_preferred_width (out int minimum_width, out int natural_width) {
@@ -68,8 +82,7 @@ public class StylishWebView : WebKit.WebView {
 
     public override void get_preferred_height (out int minimum_height, out int natural_height) {
         base.get_preferred_height (out minimum_height, out natural_height);
-        minimum_height = 100;
-        natural_height = int.max (natural_height, minimum_height);
+        minimum_height = natural_height = preferred_height;
     }
 }
 

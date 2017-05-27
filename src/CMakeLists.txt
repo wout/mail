@@ -349,6 +349,7 @@ client/components/monitored-spinner.vala
 client/components/status-bar.vala
 client/components/stock.vala
 client/components/stylish-webview.vala
+client/components/web-view-dbus-interface.vala
 
 client/composer/composer-container.vala
 client/composer/ComposerHeaderBar.vala
