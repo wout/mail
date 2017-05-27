@@ -470,9 +470,8 @@ public class ConversationWidget : Gtk.ListBoxRow {
         webview.hovering_over_link.connect (on_hovering_over_link);
         webview.context_menu.connect (context_menu);
         webview.key_press_event.connect ((event) => webview_key_press_event(event));
-        webview.resource_request_starting.connect (on_resource_request_starting);
-        webview.navigation_policy_decision_requested.connect (on_navigation_policy_decision_requested);
-        webview.new_window_policy_decision_requested.connect (on_navigation_policy_decision_requested);
+        webview.resource_load_started.connect (st_starting);
+        webview.decide_policy.connect (on_policy_decision_requested);
 
         attachments_box = new Gtk.FlowBox ();
         attachments_box.hexpand = true;
@@ -688,10 +687,8 @@ public class ConversationWidget : Gtk.ListBoxRow {
     }
 
     [CCode (instance_pos = -1)]
-    private void on_resource_request_starting (WebKit.WebFrame web_frame,
-        WebKit.WebResource web_resource, WebKit.NetworkRequest request,
-        WebKit.NetworkResponse? response) {
-        if (response != null) {
+    private void on_resource_request_starting (WebKit.WebResource resource, WebKit.URIRequest request) {
+        if (resource.response != null) {
             // A request that was previously approved resulted in a redirect.
             return;
         }
@@ -707,17 +704,15 @@ public class ConversationWidget : Gtk.ListBoxRow {
     }
 
     [CCode (instance_pos = -1)]
-    private bool on_navigation_policy_decision_requested (WebKit.WebFrame frame,
-        WebKit.NetworkRequest request, WebKit.WebNavigationAction navigation_action,
-        WebKit.WebPolicyDecision policy_decision) {
-        policy_decision.ignore ();
-
-        // Other policy-decisions may be requested for various reasons. The existence of an iframe,
-        // for example, causes a policy-decision request with an "OTHER" reason. We don't want to
-        // open a webpage in the browser just because an email contains an iframe.
-        if (navigation_action.reason == WebKit.WebNavigationReason.LINK_CLICKED)
-            link_selected (request.uri);
-        return true;
+    private bool on_policy_decision_requested (WebKit.PolicyDecision decision, WebKit.PolicyDecisionType type) {
+        decision.ignore ();
+        if (type = WebKit.PolicyDecisionType.NAVIGATION) {
+            var navigation_action = (decision as WebKit.NavigationPolicyDecision).navigation_action;
+            if (navigation_action.get_navigation_type () == WebKit.NavigationType.LINK_CLICKED)
+                link_selected (request.uri);
+            return true;
+        }
+        return false;
     }
 
     [CCode (instance_pos = -1)]
@@ -910,155 +905,17 @@ public class ConversationWidget : Gtk.ListBoxRow {
     private string insert_html_markup (string text, Geary.RFC822.Message message, out bool remote_images) {
         remote_images = false;
         try {
-            string inner_text = text;
             
-            // If email HTML has a BODY, use only that
-            GLib.Regex body_regex = new GLib.Regex ("<body([^>]*)>(.*)</body>", GLib.RegexCompileFlags.DOTALL);
-            GLib.MatchInfo matches;
-            if (body_regex.match(text, 0, out matches)) {
-                inner_text = matches.fetch (2);
-                string attrs = matches.fetch (1);
-                if (attrs != "")
-                    inner_text = @"<div$attrs>$inner_text</div>";
-            }
+            // TODO: Re-implement
             
-            // Create a workspace for manipulating the HTML.
-            WebKit.DOM.HTMLElement container = create_div ();
-            container.set_inner_html (inner_text);
-            
-
-            // Now look for the signature.
-            wrap_html_signature (ref container);
-
-            // Then look for all <img> tags. Inline images are replaced with
-            // data URLs.
-            WebKit.DOM.NodeList inline_list = container.query_selector_all ("img");
-            for (ulong i = 0; i < inline_list.length; ++i) {
-                // Get the MIME content for the image.
-                var img = (WebKit.DOM.HTMLImageElement) inline_list.item (i);
-                string? src = img.get_attribute ("src");
-                if (Geary.String.is_empty (src))
-                    continue;
-                
-                // if no Content-ID, then leave as-is, but note if a non-data: URI is being used for
-                // purposes of detecting remote images
-                string? content_id = src.has_prefix ("cid:") ? src.substring (4) : null;
-                if (Geary.String.is_empty (content_id)) {
-                    remote_images = remote_images || !src.has_prefix ("data:");
-                    
-                    continue;
-                }
-                
-                // if image has a Content-ID and it's already been replaced by the image replacer,
-                // drop this tag, otherwise fix up this one with the Base-64 data URI of the image
-                // and the replaced id
-                if (!src.has_prefix ("data:")) {
-                    string? filename = message.get_content_filename_by_mime_id (content_id);
-                    Geary.Memory.Buffer image_content = message.get_content_by_mime_id (content_id);
-                    Geary.Memory.UnownedBytesBuffer? unowned_buffer = image_content as Geary.Memory.UnownedBytesBuffer;
-
-                    // Get the content type.
-                    string guess;
-                    if (unowned_buffer != null) {
-                        guess = ContentType.guess (null, unowned_buffer.to_unowned_uint8_array (), null);
-                    } else {
-                        guess = ContentType.guess (null, image_content.get_uint8_array (), null);
-                    }
-
-                    string mimetype = ContentType.get_mime_type (guess);
-
-                    // Replace the SRC to a data URI, the class to a known label for the popup menu,
-                    // the ALT to its filename, if supplied and add the replaced-id
-                    img.set_attribute ("src", assemble_data_uri (mimetype, image_content));
-                    img.set_attribute ("class", DATA_IMAGE_CLASS);
-                    if (!Geary.String.is_empty (filename)) {
-                        img.set_attribute("alt", filename);
-                    }
-
-                    // FIXME: bugzilla.gnome.org 762782
-                    // in case content_id has a trailing period it gets removed
-                    // this is necessary as g_mime_object_get_content_id removes it too
-                    if (content_id.has_suffix (".")) {
-                        string content_id_without_suffix;
-                        content_id_without_suffix = content_id.slice(0,content_id.length-1);
-                        img.set_attribute ("replaced-id", replaced_images_index.get (content_id_without_suffix));
-                    } else {
-                        img.set_attribute ("replaced-id", replaced_images_index.get (content_id));
-                    }
-
-                    // stash here so inlined image isn't listed as attachment (esp. if it has no
-                    // Content-Disposition)
-                    inlined_content_ids.add (content_id);
-                } else {
-                    // replaced by data: URI, remove this tag and let the inserted one shine through
-                    img.parent_element.remove_child (img);
-                }
-            }
-            
-            // Remove any inline images that were referenced through Content-ID
-            foreach (string cid in inlined_content_ids) {
-                try {
-                    string escaped_cid = Geary.HTML.escape_markup (cid);
-                    WebKit.DOM.Element? img = container.query_selector (@"[cid='$escaped_cid']");
-                    if (img != null) {
-                        img.parent_element.remove_child (img);
-                    }
-                } catch (Error error) {
-                    debug ("Error removing inlined image: %s", error.message);
-                }
-            }
-
-            // Now return the whole message.
-            return container.get_inner_html();
         } catch (Error e) {
             debug("Error modifying HTML message: %s", e.message);
             return text;
         }
     }
 
-    private void wrap_html_signature (ref WebKit.DOM.HTMLElement container) throws Error {
-        // Most HTML signatures fall into one of these designs which are handled by this method:
-        //
-        // 1. GMail:            <div>-- </div>$SIGNATURE
-        // 2. GMail Alternate:  <div><span>-- </span></div>$SIGNATURE
-        // 3. Thunderbird:      <div>-- <br>$SIGNATURE</div>
-        //
-        WebKit.DOM.NodeList div_list = container.query_selector_all ("div,span,p");
-        int i = 0;
-        Regex sig_regex = new Regex ("^--\\s*$");
-        Regex alternate_sig_regex = new Regex ("^--\\s*(?:<br|\\R)");
-        for (; i < div_list.length; ++i) {
-            // Get the div and check that it starts a signature block and is not inside a quote.
-            WebKit.DOM.HTMLElement div = div_list.item(i) as WebKit.DOM.HTMLElement;
-            string inner_html = div.get_inner_html();
-            if ((sig_regex.match (inner_html) || alternate_sig_regex.match (inner_html)) &&
-                !node_is_child_of (div, "BLOCKQUOTE")) {
-                break;
-            }
-        }
-
-        // If we have a signature, move it and all of its following siblings that are not quotes
-        // inside a signature div.
-        if (i == div_list.length) {
-            return;
-        }
-
-        WebKit.DOM.Node elem = div_list.item (i) as WebKit.DOM.Node;
-        WebKit.DOM.Element parent = elem.get_parent_element ();
-        WebKit.DOM.HTMLElement signature_container = create_div ();
-        signature_container.set_attribute ("class", "signature");
-        do {
-            // Get its sibling _before_ we move it into the signature div.
-            WebKit.DOM.Node? sibling = elem.get_next_sibling ();
-            signature_container.append_child (elem);
-            elem = sibling;
-        } while (elem != null);
-
-        parent.append_child (signature_container);
-    }
-
-    public WebKit.DOM.HTMLDivElement create_div () throws Error {
-        return webview.get_dom_document ().create_element ("div") as WebKit.DOM.HTMLDivElement;
+    private void wrap_html_signature () throws Error {
+        // TODO: Re-implement
     }
 
     private bool should_show_attachment (Geary.Attachment attachment) {
@@ -1135,22 +992,7 @@ public class ConversationWidget : Gtk.ListBoxRow {
     }
 
     private void show_images_email (bool remember) {
-        try {
-            WebKit.DOM.HTMLCollection nodes = webview.get_dom_document ().images;
-            for (ulong i = 0; i < nodes.length; i++) {
-                var element = nodes.item (i) as WebKit.DOM.Element;
-                if (element == null || !element.has_attribute ("src")) {
-                    continue;
-                }
-
-                string src = element.get_attribute ("src");
-                if (src != null && !src.has_prefix ("data:")) {
-                    element.set_attribute ("src", allow_prefix + src);
-                }
-            }
-        } catch (Error error) {
-            warning ("Error showing images: %s", error.message);
-        }
+        // TODO: Re-implement
 
         info_bar.hide ();
         if (remember) {

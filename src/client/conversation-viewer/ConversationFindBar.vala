@@ -143,26 +143,7 @@ public class ConversationFindBar : Gtk.Revealer {
     }
 
     private void populate_entry () {
-        mail_list_box.get_children ().foreach ((child) => {
-            if (!(child is ConversationWidget)) {
-                return;
-            }
-
-            var webview = ((ConversationWidget) child).webview;
-            var selection = webview.get_dom_document ().default_view.get_selection ();
-            if (selection.get_range_count () <= 0)
-                return;
-
-            try {
-                WebKit.DOM.Range range = selection.get_range_at (0);
-                if (range.get_text ().strip () != "") {
-                    search_entry.text = range.get_text ();
-                }
-            } catch (Error e) {
-                warning ("Could not get selected text from web view: %s", e.message);
-            }
-        });
-    
+        // TODO: Re-implement    
     }
 
     private void mark_text_matches () {
