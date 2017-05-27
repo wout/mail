@@ -13,6 +13,7 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake )
 #
 # Base bits
 #
+include (GNUInstallDirs)
 set(GETTEXT_PACKAGE ${CMAKE_PROJECT_NAME})
 set(EXEC_NAME ${CMAKE_PROJECT_NAME})
 set(APP_NAME "Mail")

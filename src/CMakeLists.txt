@@ -309,7 +309,16 @@ engine/util/util-time.vala
 engine/util/util-trillian.vala
 )
 
+set(WEB_EXTENSIONS_DIR ${CMAKE_INSTALL_FULL_LIBDIR}/${CMAKE_PROJECT_NAME}/web-extensions)
+
+set(WEB_EXT_CONFIG
+${CMAKE_CURRENT_BINARY_DIR}/web-view-extension-config.vala
+)
+
+configure_file (${CMAKE_CURRENT_SOURCE_DIR}/client/components/web-view-extension-config.vala.cmake ${WEB_EXT_CONFIG})
+
 set(CLIENT_SRC
+${WEB_EXT_CONFIG}
 client/application/autostart-manager.vala
 client/application/geary-action-adapter.vala
 client/application/geary-application.vala
@@ -407,19 +416,15 @@ set(MAILER_SRC
 mailer/main.vala
 )
 
+set(WEB_EXT_SRC
+client/components/web-view-extension.vala
+)
+
 # Vala
 find_package(Vala REQUIRED)
 include(ValaVersion)
 ensure_vala_version("0.22.1" MINIMUM)
 include(ValaPrecompile)
-
-# Vapigen
-find_program(VAPIGEN vapigen)
-if (VAPIGEN STREQUAL "VAPIGEN-NOTFOUND")
-    message(FATAL_ERROR "vapigen must be installed to build Mail.")
-else ()
-    message(STATUS "Found vapigen: " ${VAPIGEN})
-endif ()
 
 if (LIBUNITY_FOUND)
     message(STATUS "Unity launcher support: ON")
@@ -450,17 +455,6 @@ if (GTK312X_FOUND)
     )
 endif ()
 
-if (NO_FATAL_WARNINGS)
-    message(STATUS "Vala fatal warnings: OFF")
-else ()
-    message(STATUS "Vala fatal warnings: ON")
-    
-    set (EXTRA_VALA_OPTIONS
-        ${EXTRA_VALA_OPTIONS}
-        --fatal-warnings
-    )
-endif ()
-
 set(TARGET_GLIB 2.40)
 
 pkg_check_modules(DEPS REQUIRED
@@ -476,6 +470,7 @@ pkg_check_modules(DEPS REQUIRED
     libsecret-1>=0.11
     libxml-2.0>=2.7.8
     webkit2gtk-4.0
+    webkit2gtk-web-extension-4.0
     gcr-3>=3.10.1
     gobject-introspection-1.0
     libaccounts-glib
@@ -489,6 +484,10 @@ set(ENGINE_PACKAGES
 
 set(CLIENT_PACKAGES
     gtk+-3.0 granite libsecret-1 libsoup-2.4 webkit2gtk-4.0 libcanberra gcr-3 ${EXTRA_CLIENT_PACKAGES}
+)
+
+set(WEB_VIEW_EXT_PACKAGES
+    webkit2gtk-web-extension-4.0
 )
 
 set(CONSOLE_PACKAGES
@@ -587,6 +586,19 @@ OPTIONS
 
 add_library(${CMAKE_PROJECT_NAME}-static STATIC ${ENGINE_VALA_C})
 target_link_libraries(${CMAKE_PROJECT_NAME}-static ${DEPS_LIBRARIES} sqlite3-unicodesn gthread-2.0)
+
+# Web Extension (used for accessing the DOM in the WebKit WebViews)
+###################################################################
+vala_precompile(WEB_EXT_C ${CMAKE_PROJECT_NAME}-web-extension
+    ${WEB_EXT_SRC}
+PACKAGES
+    ${WEB_VIEW_EXT_PACKAGES}
+OPTIONS
+    ${VALAC_OPTIONS}
+)
+
+add_library(${CMAKE_PROJECT_NAME}-web-extension SHARED ${WEB_EXT_C})
+install (TARGETS ${CMAKE_PROJECT_NAME}-web-extension LIBRARY DESTINATION ${WEB_EXTENSIONS_DIR})
 
 # Mail client app
 #################################################
