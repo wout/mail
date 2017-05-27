@@ -322,9 +322,6 @@ public class ComposerWidget : Gtk.EventBox {
     private bool is_closing = false;
     
     public WebKit.WebView editor;
-    // We need to keep a reference to the edit-fixer in composer-window, so it doesn't get
-    // garbage-collected.
-    private WebViewEditFixer edit_fixer;
     private ComposerContainer container {
         get { return (ComposerContainer) parent; }
     }
@@ -502,7 +499,6 @@ public class ComposerWidget : Gtk.EventBox {
             set_cursor();
         
         editor = new StylishWebView();
-        edit_fixer = new WebViewEditFixer(editor);
 
         initialize_actions ();
 
