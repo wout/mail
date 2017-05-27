@@ -468,8 +468,6 @@ public class ConversationWidget : Gtk.ListBoxRow {
         webview = new StylishWebView ();
         webview.expand = true;
         webview.context_menu.connect (context_menu);
-        webview.resource_load_started.connect (on_resource_request_starting);
-        webview.decide_policy.connect (on_policy_decision_requested);
 
         attachments_box = new Gtk.FlowBox ();
         attachments_box.hexpand = true;
@@ -671,35 +669,6 @@ public class ConversationWidget : Gtk.ListBoxRow {
         return false;
     }
 
-    [CCode (instance_pos = -1)]
-    private void on_resource_request_starting (WebKit.WebResource resource, WebKit.URIRequest request) {
-        if (resource.response != null) {
-            // A request that was previously approved resulted in a redirect.
-            return;
-        }
-
-        string? uri = request.get_uri ();
-        if (uri != null && !uri.has_prefix ("data:")) {
-            if (uri.has_prefix (allow_prefix)) {
-                request.set_uri (uri.substring (allow_prefix.length));
-            } else {
-                request.set_uri ("about:blank");
-            }
-        }
-    }
-
-    [CCode (instance_pos = -1)]
-    private bool on_policy_decision_requested (WebKit.PolicyDecision decision, WebKit.PolicyDecisionType type) {        
-        if (type == WebKit.PolicyDecisionType.NAVIGATION_ACTION) {
-            decision.ignore ();
-            var navigation_action = (decision as WebKit.NavigationPolicyDecision).navigation_action;
-            if (navigation_action.get_navigation_type () == WebKit.NavigationType.LINK_CLICKED)
-                link_selected (navigation_action.get_request ().uri);
-            return true;
-        }
-        return false;
-    }
-
     private void open_message () {
         email.notify["body"].disconnect (open_message);
         Geary.RFC822.Message? message = null;
@@ -733,8 +702,8 @@ public class ConversationWidget : Gtk.ListBoxRow {
         try {
             var body_text = message.get_body (Geary.RFC822.TextFormat.HTML, inline_image_replacer) ?? "";
             bool remote_images;
-            body_text = insert_html_markup (body_text, message, out remote_images);
-            // TODO: Re-implement load
+            insert_html_markup (body_text, message, out remote_images);
+            webview.load_html (body_text, null);
             if (remote_images) {
                 var contact = current_folder.account.get_contact_store ().get_by_rfc822 (email.get_primary_originator ());
                 bool always_load = contact != null && contact.always_load_remote_images ();
@@ -938,8 +907,8 @@ public class ConversationWidget : Gtk.ListBoxRow {
     }
 
     private void on_print_message () {
-        // TODO: What is this, does it need re-implementing        
-        //webview.get_main_frame ().print ();
+        var print = new WebKit.PrintOperation (webview);
+        print.run_dialog (get_toplevel () as Gtk.Window);
     }
 
     private bool in_drafts_folder () {

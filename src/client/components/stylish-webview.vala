@@ -65,5 +65,11 @@ public class StylishWebView : WebKit.WebView {
         minimum_width = 100;
         natural_width = int.max (natural_width, minimum_width);
     }
+
+    public override void get_preferred_height (out int minimum_height, out int natural_height) {
+        base.get_preferred_height (out minimum_height, out natural_height);
+        minimum_height = 100;
+        natural_height = int.max (natural_height, minimum_height);
+    }
 }
 
