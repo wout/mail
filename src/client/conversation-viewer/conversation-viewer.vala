@@ -33,6 +33,8 @@ public class ConversationViewer : Gtk.Stack {
     private const int QUOTE_SIZE_THRESHOLD = 120;
     // The upper and lower margin on which the mail is considered as not viewed.
     private const int READ_MARGIN = 100;
+
+    private const double ZOOM_FACTOR = 0.1;
     
     private const string EMBEDDED_CSS = """
         .deck {
@@ -805,15 +807,23 @@ public class ConversationViewer : Gtk.Stack {
     }
     
     public void zoom_in() {
-        // TODO: Re-implement
+        conversation_list_box.get_children().foreach((child) => {
+            var webview = ((ConversationWidget) child).webview;
+            webview.zoom_level += (webview.zoom_level * ZOOM_FACTOR);
+        });
     }
     
     public void zoom_out() {
-        // TODO: Re-implement
+        conversation_list_box.get_children().foreach((child) => {
+            var webview = ((ConversationWidget) child).webview;
+            webview.zoom_level -= (webview.zoom_level * ZOOM_FACTOR);
+        });
     }
     
     public void zoom_normal() {
-        // TODO: Re-implement
+        conversation_list_box.get_children().foreach((child) => {
+            ((ConversationWidget) child).webview.zoom_level = 1.0f;
+        });
     }
 }
 
