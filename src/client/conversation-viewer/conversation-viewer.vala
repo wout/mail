@@ -496,21 +496,16 @@ public class ConversationViewer : Gtk.Stack {
             if (search_folder.search_query != null)
                 add_literal_matches(search_folder.search_query.raw, search_matches);
             
-            // Webkit's highlighting is ... weird.  In order to actually see
-            // all the highlighting you're applying, it seems necessary to
-            // start with the shortest string and work up.  If you don't, it
-            // seems that shorter strings will overwrite longer ones, and
-            // you're left with incomplete highlighting.
-            Gee.ArrayList<string> ordered_matches = new Gee.ArrayList<string>();
-            ordered_matches.add_all(search_matches);
-            ordered_matches.sort((a, b) => a.length - b.length);
-            
             conversation_list_box.get_children().foreach((child) => {
                 if (!(child is ConversationWidget)) {
                     return;
                 }
                 
-                // TODO: Re-implement highlight
+                var webview = ((ConversationWidget) child).webview;
+                webview.get_find_controller ().search_finish ();
+                foreach(string match in search_matches) {
+                    webview.get_find_controller ().search (match, WebKit.FindOptions.CASE_INSENSITIVE, 1024);
+                }
             });
         } catch (Error e) {
             debug("Error highlighting search results: %s", e.message);
@@ -747,7 +742,9 @@ public class ConversationViewer : Gtk.Stack {
             if (!(child is ConversationWidget)) {
                 return;
             }
-            // TODO: Re-implement un-highlighting
+            var webview = ((ConversationWidget) child).webview;
+            webview.get_find_controller ().search_finish ();
+            ((ConversationWidget) child).collapsable = true;
         });
         
         if (search_folder != null) {
