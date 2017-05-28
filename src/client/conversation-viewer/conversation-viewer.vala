@@ -361,14 +361,7 @@ public class ConversationViewer : Gtk.Stack {
     private void on_conversations_selected(Gee.Set<Geary.App.Conversation>? conversations,
         Geary.Folder? current_folder) {
         cancel_load();
-        // Clear the URL overlay
-        on_hovering_over_link(null, null);
-        if (current_conversation != null) {
-            current_conversation.appended.disconnect(on_conversation_appended);
-            current_conversation.trimmed.disconnect(on_conversation_trimmed);
-            current_conversation.email_flags_changed.disconnect(update_flags);
-            current_conversation = null;
-        }
+
         
         // Disable message buttons until conversation loads.
         GearyApplication.instance.controller.enable_message_buttons(false);
@@ -578,10 +571,6 @@ public class ConversationViewer : Gtk.Stack {
         messages.add (email);
         
         var message_widget = new ConversationWidget(email, current_folder, is_in_folder);
-        message_widget.hovering_over_link.connect((title, url) => on_hovering_over_link(title, url));
-        message_widget.link_selected.connect ((link) => {            
-            link_selected (link);
-        });
         message_widget.mark_read.connect ((read) => {
             if (read) {
                 on_mark_read_message (message_widget.email);
@@ -684,19 +673,6 @@ public class ConversationViewer : Gtk.Stack {
                 messages.remove (email);
             }
         });
-    }
-    
-    private void on_hovering_over_link(string? title, string? url) {
-        // Copy the link the user is hovering over.  Note that when the user mouses-out, 
-        // this signal is called again with null for both parameters.
-        hover_url = url != null ? Uri.unescape_string(url) : null;
-        
-        if (hover_url == null) {
-            message_overlay.hide();
-        } else {
-            message_overlay.status = hover_url;
-            message_overlay.show_all();
-        }
     }
 
     public void show_find_bar() {

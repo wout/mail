@@ -23,8 +23,6 @@
 public class ConversationWidget : Gtk.ListBoxRow {
     public signal void open_attachment (Geary.Attachment attachment);
     public signal void save_attachments (Gee.List<Geary.Attachment> attachment);
-    public signal void hovering_over_link (string? title, string? url);
-    public signal void link_selected (string link);
     public signal void mark_read (bool read);
     public signal void star (bool starred);
     public signal void mark_load_remote_images ();
@@ -468,6 +466,7 @@ public class ConversationWidget : Gtk.ListBoxRow {
         webview = new StylishWebView ();
         webview.expand = true;
         webview.context_menu.connect (context_menu);
+        webview.mouse_target_changed.connect (on_mouse_target_changed);
 
         attachments_box = new Gtk.FlowBox ();
         attachments_box.hexpand = true;
@@ -476,6 +475,7 @@ public class ConversationWidget : Gtk.ListBoxRow {
         attachments_box.get_style_context ().add_class (Gtk.STYLE_CLASS_INLINE_TOOLBAR);
 
         content_grid = new Gtk.Grid ();
+        content_grid.set_has_tooltip (true);
         content_grid.margin = 6;
         content_grid.row_spacing = 6;
         content_grid.orientation = Gtk.Orientation.VERTICAL;
@@ -976,5 +976,14 @@ public class ConversationWidget : Gtk.ListBoxRow {
     private bool context_menu (WebKit.ContextMenu context_menu, Gdk.Event event, WebKit.HitTestResult hit_test_result) {
         // TODO: Re-implement 
         return false;
+    }
+
+    private void on_mouse_target_changed(WebKit.WebView web_view,
+                                         WebKit.HitTestResult hit_test,
+                                         uint modifiers) {
+        content_grid.set_tooltip_text(
+            hit_test.context_is_link() ? hit_test.get_link_uri() : null
+        );
+        content_grid.trigger_tooltip_query();
     }
 }
