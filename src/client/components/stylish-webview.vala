@@ -68,7 +68,7 @@ public class StylishWebView : WebKit.WebView {
     }
 
     public void on_load_changed (WebKit.LoadEvent event) {
-        if (event == WebKit.LoadEvent.FINISHED) {
+        if (event == WebKit.LoadEvent.FINISHED || event == WebKit.LoadEvent.COMMITTED) {
             preferred_height = (int) extension.get_page_height (get_page_id ());
             queue_resize ();
         }
