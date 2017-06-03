@@ -144,7 +144,7 @@ public class GearyApplication : Gtk.Application {
         base.startup();
 
         WebKit.WebContext.get_default ().set_cache_model (WebKit.CacheModel.DOCUMENT_BROWSER);
-        WebKit.WebContext.get_default ().set_web_extensions_directory(MailWebViewExtension.Build.EXTENSIONS_DIR);
+        WebKit.WebContext.get_default ().set_web_extensions_directory (MailWebViewExtension.Build.EXTENSIONS_DIR);
 
         var notification_action = new SimpleAction ("go-to-notification", null);
         notification_action.activate.connect (() => {

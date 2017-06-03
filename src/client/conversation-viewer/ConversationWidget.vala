@@ -470,6 +470,7 @@ public class ConversationWidget : Gtk.ListBoxRow {
         webview.context_menu.connect (context_menu);
         webview.mouse_target_changed.connect (on_mouse_target_changed);
         webview.link_activated.connect ((link) => link_selected(link));
+        webview.image_load_blocked.connect (on_image_load_blocked);
 
         attachments_box = new Gtk.FlowBox ();
         attachments_box.hexpand = true;
@@ -703,21 +704,14 @@ public class ConversationWidget : Gtk.ListBoxRow {
 
         try {
             var body_text = message.get_body (Geary.RFC822.TextFormat.HTML, inline_image_replacer) ?? "";
-            bool remote_images;
-            insert_html_markup (body_text, message, out remote_images);
-            webview.load_html (body_text, null);
-            if (remote_images) {
-                var contact = current_folder.account.get_contact_store ().get_by_rfc822 (email.get_primary_originator ());
-                bool always_load = contact != null && contact.always_load_remote_images ();
-                always_load |= GearyApplication.instance.config.generally_show_remote_images;
-                if (current_folder.special_folder_type != Geary.SpecialFolderType.SPAM &&
-                    always_load || email.load_remote_images ().is_certain ()) {
-                        show_images_email (false);
-                } else {
-                    info_bar.no_show_all = false;
-                    info_bar.show_all ();
-                }
+            var contact = current_folder.account.get_contact_store ().get_by_rfc822 (email.get_primary_originator ());
+            bool always_load = contact != null && contact.always_load_remote_images ();
+            always_load |= GearyApplication.instance.config.generally_show_remote_images;
+            bool spam_folder = current_folder.special_folder_type == Geary.SpecialFolderType.SPAM;
+            if (!spam_folder && always_load || email.load_remote_images ().is_certain ()) {
+                show_images_email (false);
             }
+            webview.load_html (body_text, null);
 
             return;
         } catch (Error err) {
@@ -725,6 +719,11 @@ public class ConversationWidget : Gtk.ListBoxRow {
                 debug ("Could not get message html body text. %s", err.message);
             }
         }
+    }
+
+    private void on_image_load_blocked () {
+        info_bar.no_show_all = false;
+        info_bar.show_all ();
     }
 
     private static bool is_content_type_supported_inline (Geary.Mime.ContentType content_type) {
@@ -853,12 +852,6 @@ public class ConversationWidget : Gtk.ListBoxRow {
         loader.set_size (adj_width, adj_height);
     }
 
-    private string insert_html_markup (string text, Geary.RFC822.Message message, out bool remote_images) {
-        remote_images = false;
-        // TODO: Re-implement
-        return "";
-    }
-
     private bool should_show_attachment (Geary.Attachment attachment) {
         // if displayed inline, don't include in attachment list
         if (attachment.content_id in inlined_content_ids) {
@@ -934,7 +927,7 @@ public class ConversationWidget : Gtk.ListBoxRow {
     }
 
     private void show_images_email (bool remember) {
-        // TODO: Re-implement
+        webview.load_images ();
 
         info_bar.hide ();
         if (remember) {

@@ -59,27 +59,37 @@ public class StylishWebView : WebKit.WebView {
     public signal void monospace_font_changed();
     public signal void interface_font_changed();
     public signal void link_activated (string uri);
+    public signal void image_load_blocked ();
 
     private int preferred_height = 0;
-    private MailWebViewExtension.Server extension;
+    private WebViewManager view_manager;
     
-    public StylishWebView() {
+    public StylishWebView () {
         Settings system_settings = GearyApplication.instance.config.gnome_interface;
         system_settings.bind("document-font-name", this, "document-font", SettingsBindFlags.DEFAULT);
         system_settings.bind("monospace-font-name", this, "monospace-font", SettingsBindFlags.DEFAULT);
         system_settings.bind("font-name", this, "interface-font", SettingsBindFlags.DEFAULT);
 
-        decide_policy.connect (on_decide_policy);
+        view_manager = WebViewManager.get_default ();
+        view_manager.page_height_updated.connect ((page_id) => {
+            if (page_id == get_page_id ()) {
+                preferred_height = view_manager.get_height (page_id);
+                queue_resize ();
+            }
+        });
+        view_manager.image_load_blocked.connect ((page_id) => {
+            if (page_id == get_page_id ()) {
+                image_load_blocked ();
+            }
+        });
 
-        extension = Bus.get_proxy_sync (BusType.SESSION, "io.elementary.mail.WebKitExtension",
-                                                    "/io/elementary/mail/WebKitExtension");
+        decide_policy.connect (on_decide_policy);
         load_changed.connect (on_load_changed);
     }
 
     public void on_load_changed (WebKit.LoadEvent event) {
         if (event == WebKit.LoadEvent.FINISHED || event == WebKit.LoadEvent.COMMITTED) {
-            preferred_height = (int) extension.get_page_height (get_page_id ());
-            queue_resize ();
+            view_manager.page_load_changed (get_page_id ());
         }
     }
     
@@ -132,6 +142,11 @@ public class StylishWebView : WebKit.WebView {
             policy.ignore();
         }
         return Gdk.EVENT_STOP;
+    }
+
+    public void load_images () {
+        view_manager.set_load_images (get_page_id (), true);
+        view_manager.image_loading_enabled (get_page_id ());
     }
 }
 

@@ -349,7 +349,7 @@ client/components/monitored-spinner.vala
 client/components/status-bar.vala
 client/components/stock.vala
 client/components/stylish-webview.vala
-client/components/web-view-dbus-interface.vala
+client/components/web-view-manager.vala
 
 client/composer/composer-container.vala
 client/composer/ComposerHeaderBar.vala
@@ -419,6 +419,7 @@ mailer/main.vala
 
 set(WEB_EXT_SRC
 client/components/web-view-extension.vala
+client/components/web-view-dbus-interface.vala
 )
 
 # Vala
