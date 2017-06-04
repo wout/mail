@@ -7,7 +7,11 @@ public class DOMServer : Object {
     public DOMServer (WebKit.WebExtension extension) {
         this.extension = extension;
 
-        ui_process = Bus.get_proxy_sync (BusType.SESSION, "io.elementary.mail.WebKitExtension", "/io/elementary/mail/WebKitExtension");
+        try {
+            ui_process = Bus.get_proxy_sync (BusType.SESSION, "io.elementary.mail.WebKitExtension", "/io/elementary/mail/WebKitExtension");
+        } catch (IOError e) {
+            critical ("Web extension unable to connect to UI process via D-BUS, functionality will be severely limited: %s", e.message);
+        }
         ui_process.page_load_changed.connect (on_page_load_changed);
         ui_process.image_loading_enabled.connect (on_image_loading_enabled);
     }
