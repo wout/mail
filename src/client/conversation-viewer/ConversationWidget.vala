@@ -969,7 +969,28 @@ public class ConversationWidget : Gtk.ListBoxRow {
 
     [CCode (instance_pos = -1)]
     private bool context_menu (WebKit.ContextMenu context_menu, Gdk.Event event, WebKit.HitTestResult hit_test_result) {
-        // TODO: Re-implement 
+        WebKit.ContextMenu new_context_menu = new WebKit.ContextMenu ();
+
+        for (int i = 0; i < context_menu.get_n_items (); i++) {
+            var item = context_menu.get_item_at_position (i);
+            switch (item.get_stock_action ()) {
+                case WebKit.ContextMenuAction.COPY_LINK_TO_CLIPBOARD:
+                case WebKit.ContextMenuAction.COPY_IMAGE_URL_TO_CLIPBOARD:
+                case WebKit.ContextMenuAction.COPY:
+                    new_context_menu.append (item);
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        context_menu.remove_all ();
+        foreach (var item in new_context_menu.get_items ()) {
+            context_menu.append (item);
+        }
+
+        context_menu.append (new WebKit.ContextMenuItem.from_stock_action (WebKit.ContextMenuAction.SELECT_ALL));
+
         return false;
     }
 
