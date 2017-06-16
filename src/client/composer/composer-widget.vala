@@ -188,15 +188,6 @@ public class ComposerWidget : Gtk.EventBox {
         set { subject_entry.set_text(value); }
     }
     
-    public string message {
-        owned get { return ""; } // TODO: Re-implement
-        set {
-            body_html = value;
-            // TODO: Re-implement
-            //editor.load_string(HTML_BODY, "text/html", "UTF8", "");
-        }
-    }
-    
     public ComposerState state { get; set; }
     
     public ComposeType compose_type { get; private set; default = ComposeType.NEW_MESSAGE; }
@@ -222,7 +213,7 @@ public class ComposerWidget : Gtk.EventBox {
     
     private ContactListStore? contact_list_store = null;
     
-    private string? body_html = null;
+    private string body_html = "";
     private Gee.Set<File> attachment_files = new Gee.HashSet<File>(Geary.Files.nullable_hash,
         Geary.Files.nullable_equal);
     
@@ -272,7 +263,7 @@ public class ComposerWidget : Gtk.EventBox {
     private uint draft_save_timeout_id = 0;
     private bool is_closing = false;
     
-    public WebKit.WebView editor;
+    public ComposerWebView editor;
     private ComposerContainer container {
         get { return (ComposerContainer) parent; }
     }
@@ -388,6 +379,8 @@ public class ComposerWidget : Gtk.EventBox {
         
         from = account.information.get_primary_from();
         update_from_field();
+
+        string referred_quote = "";
         
         if (referred != null) {
             if (compose_type != ComposeType.NEW_MESSAGE) {
@@ -426,7 +419,7 @@ public class ComposerWidget : Gtk.EventBox {
                 case ComposeType.REPLY_ALL:
                     subject = reply_subject;
                     references = Geary.RFC822.Utils.reply_references(referred);
-                    body_html = "\n\n" + Geary.RFC822.Utils.quote_email_for_reply(referred, quote,
+                    referred_quote = "\n\n" + Geary.RFC822.Utils.quote_email_for_reply(referred, quote,
                         Geary.RFC822.TextFormat.HTML);
                     pending_attachments = referred.attachments;
                     if (quote == null)
@@ -435,7 +428,7 @@ public class ComposerWidget : Gtk.EventBox {
                 
                 case ComposeType.FORWARD:
                     subject = forward_subject;
-                    body_html = "\n\n" + Geary.RFC822.Utils.quote_email_for_forward(referred, quote,
+                    referred_quote = "\n\n" + Geary.RFC822.Utils.quote_email_for_forward(referred, quote,
                         Geary.RFC822.TextFormat.HTML);
                     add_attachments(referred.attachments);
                     pending_attachments = referred.attachments;
@@ -443,11 +436,37 @@ public class ComposerWidget : Gtk.EventBox {
             }
         }
         
+        string signature = "";
         // only add signature if the option is actually set and if this is not a draft
-        if (account.information.use_email_signature && !is_referred_draft)
-            add_signature_and_cursor();
+        if (account.information.use_email_signature && !is_referred_draft) {        
+            // If use signature is enabled but no contents are on settings then we'll use ~/.signature, if any
+            // otherwise use whatever the user has input in settings dialog
+            if (account.information.use_email_signature && Geary.String.is_empty_or_whitespace(account.information.email_signature)) {
+                File signature_file = File.new_for_path(Environment.get_home_dir()).get_child(".signature");
+                if (!signature_file.query_exists()) {
+                    return;
+                }
+                
+                try {
+                    FileUtils.get_contents(signature_file.get_path(), out signature);
+                    if (Geary.String.is_empty_or_whitespace(signature)) {
+                        return;
+                    }
+                    signature = smart_escape(signature, false);
+                } catch (Error error) {
+                    debug("Error reading signature file %s: %s", signature_file.get_path(), error.message);
+                    return;
+                }
+            } else {
+                signature = account.information.email_signature;
+                if(Geary.String.is_empty_or_whitespace(signature)) {
+                    return;
+                }
+                signature = smart_escape(signature, true);
+            }
+        }
         
-        editor = new StylishWebView();
+        editor = new ComposerWebView();
 
         initialize_actions ();
 
@@ -456,6 +475,8 @@ public class ComposerWidget : Gtk.EventBox {
         editor.move_focus.connect(update_actions);
         editor.key_press_event.connect(on_editor_key_press);        
         editor.decide_policy.connect(on_policy_decision_requested);
+
+        editor.load_html (body_html, signature, referred_quote, true, is_referred_draft);
 
         // Font family menu items.
         font_sans = new Gtk.CheckMenuItem.with_mnemonic (_("S_ans Serif"));
@@ -913,36 +934,6 @@ public class ComposerWidget : Gtk.EventBox {
         
         in_reply_to.add(referred.message_id);
         referred_ids.add(referred.id);
-    }
-    
-    private void add_signature_and_cursor() {
-        string? signature = null;
-        
-        // If use signature is enabled but no contents are on settings then we'll use ~/.signature, if any
-        // otherwise use whatever the user has input in settings dialog
-        if (account.information.use_email_signature && Geary.String.is_empty_or_whitespace(account.information.email_signature)) {
-            File signature_file = File.new_for_path(Environment.get_home_dir()).get_child(".signature");
-            if (!signature_file.query_exists()) {
-                return;
-            }
-            
-            try {
-                FileUtils.get_contents(signature_file.get_path(), out signature);
-                if (Geary.String.is_empty_or_whitespace(signature)) {
-                    return;
-                }
-                signature = smart_escape(signature, false);
-            } catch (Error error) {
-                debug("Error reading signature file %s: %s", signature_file.get_path(), error.message);
-                return;
-            }
-        } else {
-            signature = account.information.email_signature;
-            if(Geary.String.is_empty_or_whitespace(signature)) {
-                return;
-            }
-            signature = smart_escape(signature, true);
-        }
     }
     
     private bool can_save() {
@@ -1691,16 +1682,6 @@ public class ComposerWidget : Gtk.EventBox {
                 return true;
             }
             return false;
-        }
-        
-        if (can_delete_quote) {
-            can_delete_quote = false;
-            if (event.keyval == Gdk.Key.BackSpace) {
-                body_html = null;
-                if (account.information.use_email_signature)
-                    add_signature_and_cursor();
-                return true;
-            }
         }
         
         return false;

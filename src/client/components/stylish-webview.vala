@@ -107,8 +107,8 @@ public class StylishWebView : WebKit.WebView {
     /**
      * Loads a message HTML body into the view.
      */
-    public new void load_html(string? body, string? base_uri=null) {
-        base.load_html(body, base_uri ?? INTERNAL_URL_BODY);
+    public new void load_html (string? body, string? base_uri=null) {
+        base.load_html (body, base_uri ?? INTERNAL_URL_BODY);
     }
 
     private bool on_decide_policy(WebKit.WebView view,
