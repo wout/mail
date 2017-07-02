@@ -38,7 +38,7 @@ public class ConversationWidget : Gtk.ListBoxRow {
     // to prevent the list of emails to scroll in an unwanted manner
     public signal void disable_display_last_email ();
 
-    public Geary.Email email { get; private set; }
+    public Camel.MessageInfo email { get; private set; }
     public StylishWebView webview { get; private set; }
     public bool collapsable { get; set; default = true; }
     public bool collapsed {
@@ -85,7 +85,7 @@ public class ConversationWidget : Gtk.ListBoxRow {
     private const string REPLACED_IMAGE_CLASS = "replaced_inline_image";
     private const string DATA_IMAGE_CLASS = "data_inline_image";
 
-    private weak Geary.Folder? current_folder = null;
+    private Camel.Folder current_folder;
 
     private string allow_prefix;
     private int next_replaced_buffer_number = 0;
@@ -116,26 +116,34 @@ public class ConversationWidget : Gtk.ListBoxRow {
     private Gtk.FlowBox attachments_box;
     private Gtk.MenuItem read_item;
 
-    public ConversationWidget (Geary.Email email, Geary.Folder? current_folder, bool is_in_folder) {
+    public ConversationWidget (Camel.MessageInfo email, Camel.Folder current_folder) {
         this.email = email;
         this.current_folder = current_folder;
-
         // Populate the summary widgets
         var clock_format = GearyApplication.instance.config.clock_format;
-        datetime.label = Date.pretty_print (email.date.value, clock_format);
-        email.from.get_all ().foreach ((address) => {
-            if (address.name != null) {
-                user_name.label = "<b>%s</b>".printf (Markup.escape_text (address.name));
-                user_mail.label = "<small>%s</small>".printf (Markup.escape_text (address.address));
+        var received_date = new GLib.DateTime.from_unix_utc (email.get_date_received ());
+        datetime.label = Date.pretty_print (received_date, clock_format);
+        
+        bool noreply = false;
+        /*var from_addresses = message.get_from ();
+        for (int i = 0; i < from_addresses.length (); i++) {
+            string? namep = null;
+            string? addressp = null;
+            from_addresses.get (i, out namep, out addressp);
+            if (namep != null) {
+                user_name.label = "<b>%s</b>".printf (Markup.escape_text (namep));
+                user_mail.label = "<small>%s</small>".printf (Markup.escape_text (addressp));
             } else {
-                user_name.label = "<b>%s</b>".printf (Markup.escape_text (address.address));
+                user_name.label = "<b>%s</b>".printf (Markup.escape_text (addressp));
                 user_mail.label = "";
             }
 
-            return false;
-        });
+            noreply = noreply | EmailUtil.is_noreply (addressp);
+        }
 
-        try {
+        insert_header_address(_("From:"), from_addresses, 0);*/
+
+        /*try {
             var message = email.get_message ().get_preview ();
             message = message.replace ("\n", " ");
             message = message.replace ("\r \r", " ");
@@ -144,21 +152,15 @@ public class ConversationWidget : Gtk.ListBoxRow {
             message_content.label = Markup.escape_text (message);
         } catch (Error e) {
             debug ("Error adding message: %s", e.message);
-        }
+        }*/
 
         // Populate the extended widgets
-        insert_header_address(_("From:"), email.from, 0);
-        Gee.List<Geary.RFC822.MailboxAddress>? addresses = email.from.get_all();
-        bool noreply = false;
-        foreach (Geary.RFC822.MailboxAddress a in addresses) {
-            if (a.is_noreply()) {
-                noreply = true; break;
-            }
-        }
         if (noreply)
             GearyApplication.instance.controller.disable_reply_buttons();
 
-        int row_id = 1;
+        open_message.begin ();
+
+        /*int row_id = 1;
         if (email.to != null) {
             insert_header_address(_("To:"), email.to, row_id);
             row_id++;
@@ -265,7 +267,7 @@ public class ConversationWidget : Gtk.ListBoxRow {
             }
         }
 
-        if (!is_in_folder || !in_drafts_folder ()) {
+        if (!in_drafts_folder ()) {
             draft_edit_button.destroy ();
         }
 
@@ -316,7 +318,7 @@ public class ConversationWidget : Gtk.ListBoxRow {
         email.notify["email-flags"].connect (() => email_flags_changed ());
 
         source_item.activate.connect (() => on_view_source ());
-        print_item.activate.connect (() => on_print_message ());
+        print_item.activate.connect (() => on_print_message ());*/
     }
 
     construct {
@@ -330,7 +332,7 @@ public class ConversationWidget : Gtk.ListBoxRow {
         // Creating the Header
         var header_grid = new Gtk.Grid ();
         header_grid.can_focus = false;
-        header_grid.orientation = Gtk.Orientation.HORIZONTAL;        
+        header_grid.orientation = Gtk.Orientation.HORIZONTAL;
         header_grid.margin = 6;
         header_grid.column_spacing = 6;
 
@@ -545,32 +547,31 @@ public class ConversationWidget : Gtk.ListBoxRow {
         return base.draw (cr);
     }
 
-    private void insert_header_address (string title, Geary.RFC822.MailboxAddresses? addresses, int index) {
+    private void insert_header_address (string title, Camel.InternetAddress addresses, int index) {
         if (addresses == null)
             return;
 
-        int i = 0;
         string value = "";
-        Gee.List<Geary.RFC822.MailboxAddress> list = addresses.get_all ();
-        foreach (Geary.RFC822.MailboxAddress a in list) {
-            value += "<a href='mailto:%s'>".printf(Uri.escape_string (a.to_rfc822_string()));
-            if (!Geary.String.is_empty (a.name)) {
+        for(int i = 0; i < addresses.length (); i++) {
+            string? namep  = null;
+            string? addressp = null;
+            addresses.get (i, out namep, out addressp);
+            if (i == 0) {
+                value += ", ";
+            }
+
+            value += "<a href='mailto:%s'>".printf(Uri.escape_string (addressp));
+            if (!Geary.String.is_empty (namep)) {
                 if (get_direction () == Gtk.TextDirection.RTL) {
-                    value += "<small>%s</small>".printf (Geary.HTML.escape_markup (a.address));
-                    value += " <b>%s</b>".printf (Geary.HTML.escape_markup (a.name));
+                    value += "<small>%s</small> <b>%s</b>".printf (Geary.HTML.escape_markup (addressp), Geary.HTML.escape_markup (namep));
                 } else {
-                    value += "<b>%s</b> ".printf (Geary.HTML.escape_markup (a.name));
-                    value += "<small>%s</small>".printf (Geary.HTML.escape_markup (a.address));
+                    value += "<b>%s</b> <small>%s</small>".printf (Geary.HTML.escape_markup (namep), Geary.HTML.escape_markup (addressp));
                 }
             } else {
-                value += Geary.HTML.escape_markup (a.address);
+                value += Geary.HTML.escape_markup (addressp);
             }
 
             value += "</a>";
-
-            if (++i < list.size) {
-                value += ", ";
-            }
         }
 
         var title_label = new Gtk.Label (title);
@@ -725,15 +726,16 @@ public class ConversationWidget : Gtk.ListBoxRow {
         hovering_over_link (title, url);
     }
 
-    private void open_message () {
-        email.notify["body"].disconnect (open_message);
-        Geary.RFC822.Message? message = null;
+    private async void open_message () {
+        Camel.MimeMessage message;
         try {
-            message = email.get_message ();
+            message = yield current_folder.get_message (email.uid, GLib.Priority.DEFAULT, null);
         } catch (Error e) {
             debug("Could not get message. %s", e.message);
             return;
         }
+
+        email.notify["body"].disconnect (open_message);
 
         //
         // Build an HTML document from the email with two passes:
@@ -755,12 +757,13 @@ public class ConversationWidget : Gtk.ListBoxRow {
         // Content-Disposition)
         //
 
+        
         try {
-            var body_text = message.get_body (Geary.RFC822.TextFormat.HTML, inline_image_replacer) ?? "";
+            var body_text = EmailUtil.get_mime_content (message);
             bool remote_images;
-            body_text = insert_html_markup (body_text, message, out remote_images);
+            //body_text = insert_html_markup (body_text, message, out remote_images);
             webview.get_dom_document ().body.set_inner_html (body_text);
-            if (remote_images) {
+            /*if (remote_images) {
                 var contact = current_folder.account.get_contact_store ().get_by_rfc822 (email.get_primary_originator ());
                 bool always_load = contact != null && contact.always_load_remote_images ();
                 always_load |= GearyApplication.instance.config.generally_show_remote_images;
@@ -771,7 +774,7 @@ public class ConversationWidget : Gtk.ListBoxRow {
                     info_bar.no_show_all = false;
                     info_bar.show_all ();
                 }
-            }
+            }*/
 
             return;
         } catch (Error err) {
@@ -1079,19 +1082,19 @@ public class ConversationWidget : Gtk.ListBoxRow {
 
     private int displayed_attachments () {
         int ret = 0;
-        email.attachments.foreach ((attachment) => {
+        /*email.attachments.foreach ((attachment) => {
             if (should_show_attachment (attachment)) {
                 ret++;
             }
 
             return true;
-        });
+        });*/
 
         return ret;
     }
 
     private void on_view_source () {
-        string source = email.header.buffer.to_string () + email.body.buffer.to_string ();
+        /*string source = email.header.buffer.to_string () + email.body.buffer.to_string ();
         try {
             string temporary_filename;
             int temporary_handle = FileUtils.open_tmp ("geary-message-XXXXXX.txt", out temporary_filename);
@@ -1107,7 +1110,7 @@ public class ConversationWidget : Gtk.ListBoxRow {
             ErrorDialog dialog = new ErrorDialog (GearyApplication.instance.controller.main_window,
                 _("Failed to open default text editor."), error.message);
             dialog.run ();
-        }
+        }*/
     }
 
     private void on_print_message () {
@@ -1115,11 +1118,11 @@ public class ConversationWidget : Gtk.ListBoxRow {
     }
 
     private bool in_drafts_folder () {
-        return current_folder != null && current_folder.special_folder_type == Geary.SpecialFolderType.DRAFTS;
+        return current_folder != null && Camel.FolderInfoFlags.TYPE_DRAFTS in (int)current_folder.get_flags ();
     }
 
     private void show_images_from () {
-        Geary.ContactStore contact_store = current_folder.account.get_contact_store();
+        /*Geary.ContactStore contact_store = current_folder.account.get_contact_store();
         Geary.Contact? contact = contact_store.get_by_rfc822(email.get_primary_originator());
         if (contact == null) {
             debug("Couldn't find contact for %s", email.from.to_string());
@@ -1131,11 +1134,11 @@ public class ConversationWidget : Gtk.ListBoxRow {
         Gee.ArrayList<Geary.Contact> contact_list = new Gee.ArrayList<Geary.Contact>();
         contact_list.add(contact);
         contact_store.mark_contacts_async.begin(contact_list, flags, null);
-        show_images_email (false);
+        show_images_email (false);*/
     }
 
     private void show_images_email (bool remember) {
-        try {
+        /*try {
             WebKit.DOM.HTMLCollection nodes = webview.get_dom_document ().images;
             for (ulong i = 0; i < nodes.length; i++) {
                 var element = nodes.item (i) as WebKit.DOM.Element;
@@ -1158,7 +1161,7 @@ public class ConversationWidget : Gtk.ListBoxRow {
             if (email != null && !email.load_remote_images ().is_certain ()) {
                 mark_load_remote_images ();
             }
-        }
+        }*/
     }
 
     private void on_show_images_change () {
@@ -1169,21 +1172,21 @@ public class ConversationWidget : Gtk.ListBoxRow {
             return;
         }
 
-        if (email == null || current_folder.special_folder_type == Geary.SpecialFolderType.SPAM)
+        if (email == null || Camel.FolderInfoFlags.TYPE_JUNK in (int)current_folder.get_flags ())
             return;
 
         show_images_email (false);
     }
 
     private void email_flags_changed () {
-        if (email.is_unread () == Geary.Trillian.TRUE) {
+        if (Camel.MessageFlags.SEEN in (int)email.flags) {
             read_item.label = _("Mark as Read");
         } else {
             read_item.label = _("Mark as Unread");
         }
 
         var star_image = (Gtk.Image) star_button.image;
-        if (email.is_flagged () == Geary.Trillian.TRUE) {
+        if (Camel.MessageFlags.FLAGGED in (int)email.flags) {
             star_image.icon_name = "starred-symbolic";
         } else {
             star_image.icon_name = "non-starred-symbolic";

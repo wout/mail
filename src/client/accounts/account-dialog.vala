@@ -77,11 +77,12 @@ public class AccountDialog : Gtk.Dialog {
         return accounts.get(email_address);
     }
     
-    private void on_edit_account(string email_address) {
-        on_edit_account_async.begin(email_address);
+    private void on_edit_account(Mail.Backend.Account account) {
+        add_edit_pane.set_account (account);
+        //on_edit_account_async.begin(email_address);
     }
     
-    private async void on_edit_account_async(string email_address) {
+    /*private async void on_edit_account_async(string email_address) {
         Geary.AccountInformation? account = get_account_info_for_email(email_address);
         if (account == null)
             return;
@@ -95,10 +96,10 @@ public class AccountDialog : Gtk.Dialog {
         add_edit_pane.set_mode(AddEditPage.PageMode.EDIT);
         add_edit_pane.set_account_information(account);
         add_edit_pane.present();
-    }
+    }*/
     
-    private void on_delete_account(string email_address) {
-        Geary.AccountInformation? account = get_account_info_for_email(email_address);
+    private void on_delete_account(Mail.Backend.Account email_address) {
+        /*Geary.AccountInformation? account = get_account_info_for_email(email_address);
         if (account == null)
             return;
         
@@ -125,7 +126,7 @@ public class AccountDialog : Gtk.Dialog {
             // Send user to confirmation screen.
             remove_confirm_pane.set_account(account);
             remove_confirm_pane.present();
-        }
+        }*/
     }
     
     private void on_edit_alternate_emails(string email_address) {

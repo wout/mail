@@ -27,8 +27,8 @@ public class Mail.ConversationListItem : Gtk.ListBoxRow {
         }
     """;
 
-
     public Camel.FolderThreadNode node { get; private set; }
+
     Gtk.Label source;
     Gtk.Label messages;
     Gtk.Label topic;

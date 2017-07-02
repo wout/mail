@@ -289,7 +289,7 @@ public class ConversationViewer : Gtk.Stack {
             return 0;
         }
 
-        return Geary.Email.compare_sent_date_ascending(((ConversationWidget) row1).email, ((ConversationWidget) row2).email);
+        return (int)(((ConversationWidget) row1).email.date_received - ((ConversationWidget) row2).email.date_received);
     }
     
     private void show_special_message(string msg) {
@@ -356,6 +356,17 @@ public class ConversationViewer : Gtk.Stack {
     // and after displaying a ComposerCard (reply / forward an email).
     private void on_start_stay_down () {
         conversation_scrolled.vadjustment.changed.connect(display_last_email);
+    }
+
+    public void add_conversation (Camel.FolderThreadNode node) {
+        var message_widget = new ConversationWidget (node.message, node.message.summary.folder);
+        message_widget.show_all ();
+        conversation_list_box.add(message_widget);
+        
+    }
+
+    public void conversation_selected (Camel.FolderThreadNode node) {
+        
     }
 
     private void on_conversations_selected(Gee.Set<Geary.App.Conversation>? conversations,
@@ -576,7 +587,7 @@ public class ConversationViewer : Gtk.Stack {
     
     private void add_message(Geary.Email email, bool is_in_folder) {
         // Make sure the message container is showing and the multi-message counter hidden.
-        set_mode(DisplayMode.CONVERSATION);
+        /*set_mode(DisplayMode.CONVERSATION);
         
         if (messages.contains(email))
             return;
@@ -622,7 +633,7 @@ public class ConversationViewer : Gtk.Stack {
         message_widget.show_all();
         
         // Add classes according to the state of the email.
-        update_flags(email);
+        update_flags(email);*/
     }
     
     private void unhide_last_email() {
@@ -685,10 +696,10 @@ public class ConversationViewer : Gtk.Stack {
                 return;
             }
             
-            if (((ConversationWidget) child).email.id == email.id) {
+            /*if (((ConversationWidget) child).email.uid == email.id) {
                 child.destroy();
                 messages.remove (email);
-            }
+            }*/
         });
     }
     
@@ -717,7 +728,7 @@ public class ConversationViewer : Gtk.Stack {
     }
 
     public void mark_read () {
-        var last_child = conversation_list_box.get_row_at_index ((int)conversation_list_box.get_children ().length () -1);
+        /*var last_child = conversation_list_box.get_row_at_index ((int)conversation_list_box.get_children ().length () -1);
         if (last_child == null) {
             return;
         }
@@ -727,14 +738,14 @@ public class ConversationViewer : Gtk.Stack {
         var start_y = (int) GLib.Math.trunc(conversation_scrolled.vadjustment.value) + READ_MARGIN;
         var view_height = conversation_scrolled.get_allocated_height();
         
-        var emails = new Gee.ArrayList<Geary.EmailIdentifier>();
+        var emails = new Gee.ArrayList<string>();
         // Mark all visible widgets of the view as read (if it's considered as visible)
         for (int y = start_y; y < start_y + view_height - 2 * READ_MARGIN; y = y + READ_MARGIN) {
             var row = conversation_list_box.get_row_at_y(y);
             if (row != null && row is ConversationWidget) {
                 var email = ((ConversationWidget) row).email;
-                if (email.email_flags.is_unread() && !emails.contains(email.id) && !((ConversationWidget) row).forced_unread) {
-                    emails.add(email.id);
+                if (!(Camel.MessageFlags.SEEN in (int)email.flags) && !emails.contains(email.uid) && !((ConversationWidget) row).forced_unread) {
+                    emails.add(email.uid);
                 }
             }
         }
@@ -743,7 +754,7 @@ public class ConversationViewer : Gtk.Stack {
             Geary.EmailFlags flags = new Geary.EmailFlags();
             flags.add(Geary.EmailFlags.UNREAD);
             mark_messages(emails, null, flags);
-        }
+        }*/
     }
     
     // State reset.

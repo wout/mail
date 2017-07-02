@@ -11,6 +11,8 @@ public class MainWindow : Gtk.ApplicationWindow {
     public signal void on_shift_key(bool pressed);
 
     public FolderList.Tree folder_list { get; private set; default = new FolderList.Tree(); }
+    public Mail.FoldersListView folders_view { get; private set; default = new Mail.FoldersListView (); }
+    public Mail.ConversationListBox conversation_list_box { get; private set; default = new Mail.ConversationListBox (); }
     public ConversationListStore conversation_list_store { get; private set; default = new ConversationListStore(); }
     public MainToolbar main_toolbar { get; private set; }
     public ConversationListView conversation_list_view  { get; private set; }
@@ -72,6 +74,10 @@ public class MainWindow : Gtk.ApplicationWindow {
         GearyApplication.instance.controller.folder_selected.connect(on_folder_selected);
         Geary.Engine.instance.account_available.connect(on_account_available);
         Geary.Engine.instance.account_unavailable.connect(on_account_unavailable);
+
+        folders_view.folder_selected.connect ((account, name) => conversation_list_box.set_folder.begin (account, name));
+        conversation_list_box.conversation_selected.connect ((node) => conversation_viewer.add_conversation (node));
+        conversation_list_box.conversation_focused.connect ((node) => conversation_viewer.conversation_selected (node));
 
         create_layout();
         on_change_orientation();
@@ -142,14 +148,14 @@ public class MainWindow : Gtk.ApplicationWindow {
 
         Gtk.Box folder_box = new Gtk.Box (Gtk.Orientation.VERTICAL, 0);
         folder_box.get_style_context ().add_class (Gtk.STYLE_CLASS_SIDEBAR);
-        folder_box.pack_start (folder_list_scrolled, true, true);
+        folder_box.pack_start (folders_view, true, true);
         folder_box.pack_start (status_bar, false, false);
 
         // message list
         conversation_list_scrolled = new Gtk.ScrolledWindow (null, null);
         conversation_list_scrolled.hscrollbar_policy = Gtk.PolicyType.NEVER;
         conversation_list_scrolled.width_request = 250;
-        conversation_list_scrolled.add (conversation_list_view);
+        conversation_list_scrolled.add (conversation_list_box);
 
         // Folder list to the left of everything.
         folder_paned.pack1 (folder_box, false, false);

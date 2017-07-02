@@ -58,7 +58,11 @@ public class AccountDialogAddEditPane : AccountDialogPane {
     
     public void set_account_information(Geary.AccountInformation info,
         Geary.Engine.ValidationResult result = Geary.Engine.ValidationResult.OK) {
-        add_edit_page.set_account_information(info, result);
+        //add_edit_page.set_account_information(info, result);
+    }
+    
+    public void set_account (Mail.Backend.Account account) {
+        critical ("%s", account.service.settings.get_type ().name());
     }
     
     public void set_validation_result(Geary.Engine.ValidationResult result) {

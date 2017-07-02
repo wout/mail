@@ -21,12 +21,24 @@
  */
 
 public class Mail.ConversationListBox : Gtk.ListBox {
+    public signal void conversation_selected (Camel.FolderThreadNode node);
+    public signal void conversation_focused (Camel.FolderThreadNode node);
+
     private string current_folder;
     private Backend.Account current_account;
     private GLib.Cancellable? cancellable = null;
     private Camel.FolderThread thread;
-    public ConversationListBox () {
+
+    construct {
+        selection_mode = Gtk.SelectionMode.MULTIPLE;
+        activate_on_single_click = true;
         set_sort_func (thread_sort_function);
+        row_activated.connect ((row) => {
+            conversation_focused (((ConversationListItem) row).node);
+        });
+        row_selected.connect ((row) => {
+            conversation_selected (((ConversationListItem) row).node);
+        });
     }
 
     public async void set_folder (Backend.Account account, string next_folder) {

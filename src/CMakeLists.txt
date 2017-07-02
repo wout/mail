@@ -310,6 +310,9 @@ engine/util/util-trillian.vala
 )
 
 set(CLIENT_SRC
+client/backend/Session.vala
+client/backend/Account.vala
+
 client/application/autostart-manager.vala
 client/application/geary-action-adapter.vala
 client/application/geary-application.vala
@@ -356,6 +359,8 @@ client/conversation-list/conversation-list-cell-renderer.vala
 client/conversation-list/conversation-list-store.vala
 client/conversation-list/conversation-list-view.vala
 client/conversation-list/formatted-conversation-data.vala
+client/conversation-list/ConversationListBox.vala
+client/conversation-list/ConversationListItem.vala
 
 client/conversation-viewer/conversation-viewer.vala
 client/conversation-viewer/ConversationWidget.vala
@@ -390,6 +395,10 @@ client/sidebar/sidebar-common.vala
 client/sidebar/sidebar-count-cell-renderer.vala
 client/sidebar/sidebar-entry.vala
 client/sidebar/sidebar-tree.vala
+
+client/source-list/FoldersListView.vala
+client/source-list/AccountSourceItem.vala
+client/source-list/FolderSourceItem.vala
 
 client/util/util-date.vala
 client/util/util-email.vala
@@ -531,6 +540,9 @@ pkg_check_modules(DEPS REQUIRED
     gobject-introspection-1.0
     libaccounts-glib
     libgsignon-glib
+    camel-1.2
+    libedataserver-1.2
+    libedataserverui-1.2
     ${EXTRA_CLIENT_PKG_CONFIG}
 )
 
@@ -541,7 +553,7 @@ set(ENGINE_PACKAGES
 # webkitgtk-3.0 is listed as a custom VAPI (below) to ensure it's treated as a dependency and
 # built before compilation
 set(CLIENT_PACKAGES
-    gtk+-3.0 granite libsecret-1 libsoup-2.4 libcanberra gcr-3 ${EXTRA_CLIENT_PACKAGES}
+    camel-1.2 libedataserver-1.2 libedataserverui-1.2 gtk+-3.0 granite libsecret-1 libsoup-2.4 libcanberra gcr-3 ${EXTRA_CLIENT_PACKAGES}
 )
 
 set(CONSOLE_PACKAGES

@@ -6,21 +6,16 @@
 
 // List of accounts.  Used with AccountDialog.
 public class AccountDialogAccountListPane : AccountDialogPane {
-    public enum Column {
-        ACCOUNT_NICKNAME = 0,
-        ACCOUNT_ADDRESS;
-    }
-    
     private Gtk.TreeView list_view;
-    private Gtk.ListStore list_model = new Gtk.ListStore(2, typeof (string), typeof (string));
+    private Gtk.ListStore list_model = new Gtk.ListStore(2, typeof (string), typeof (Mail.Backend.Account));
     private Gtk.Action edit_action;
     private Gtk.Action delete_action;
     
     public signal void add_account();
     
-    public signal void edit_account(string email_address);
+    public signal void edit_account(Mail.Backend.Account email_address);
     
-    public signal void delete_account(string email_address);
+    public signal void delete_account(Mail.Backend.Account email_address);
     
     public AccountDialogAccountListPane(Gtk.Stack stack) {
         base(stack);
@@ -33,16 +28,12 @@ public class AccountDialogAccountListPane : AccountDialogPane {
         // Set up list.
         list_view = (Gtk.TreeView) builder.get_object("account_list");
         list_view.set_model(list_model);
-        list_view.insert_column_with_attributes(-1, "Nickname", new Gtk.CellRendererText(), "text",
-            Column.ACCOUNT_NICKNAME);
-        list_view.get_column(Column.ACCOUNT_NICKNAME).set_expand(true);
-        list_view.insert_column_with_attributes(-1, "Address", new Gtk.CellRendererText(), "text",
-            Column.ACCOUNT_ADDRESS);
-        list_view.get_column(Column.ACCOUNT_ADDRESS).set_expand(true);
+        list_view.insert_column_with_attributes(-1, "Nickname", new Gtk.CellRendererText(), "text",0);
+        list_view.get_column(0).set_expand(true);
         list_view.reorderable = true;
         
         // Get all accounts and add them to a list.
-        Gee.LinkedList<Geary.AccountInformation> account_list =
+        /*Gee.LinkedList<Geary.AccountInformation> account_list =
             new Gee.LinkedList<Geary.AccountInformation>();
         try {
             account_list.insert_all(0, Geary.Engine.instance.get_accounts().values);
@@ -53,7 +44,7 @@ public class AccountDialogAccountListPane : AccountDialogPane {
         // Sort accounts and add them to the UI.
         account_list.sort(Geary.AccountInformation.compare_ascending);
         foreach (Geary.AccountInformation account in account_list)
-            on_account_added(account);
+            on_account_added(account);*/
         
         // Hook up signals.
         actions.get_action("add_account").activate.connect(() => { add_account(); });
@@ -70,18 +61,24 @@ public class AccountDialogAccountListPane : AccountDialogPane {
         scroll.get_style_context().set_junction_sides(Gtk.JunctionSides.BOTTOM);
         
         // Watch for accounts to be added/removed.
-        Geary.Engine.instance.account_added.connect(on_account_added);
+        //Geary.Engine.instance.account_added.connect(on_account_added);
         Geary.Engine.instance.account_removed.connect(on_account_removed);
+
+        var session = Mail.Backend.Session.get_default ();
+        var accounts = session.get_accounts ();
+        foreach (var account in accounts) {
+            on_account_added(account);
+        }
     }
     
     private void notify_edit_account() {
-        string? account = get_selected_account();
+        Mail.Backend.Account? account = get_selected_account();
         if (account != null)
             edit_account(account);
     }
     
     private void notify_delete_account() {
-        string? account = get_selected_account();
+        Mail.Backend.Account? account = get_selected_account();
         if (account != null)
             delete_account(account);
     }
@@ -104,7 +101,7 @@ public class AccountDialogAccountListPane : AccountDialogPane {
     }
     
     // Returns the email address of the selected account.  Returns null if no account is selected.
-    private string? get_selected_account() {
+    private Mail.Backend.Account? get_selected_account() {
         if (list_view.get_selection().count_selected_rows() != 1)
             return null;
         
@@ -114,8 +111,8 @@ public class AccountDialogAccountListPane : AccountDialogPane {
         if (!list_model.get_iter(out iter, path))
             return null;
         
-        string? account = null;
-        list_model.get(iter, Column.ACCOUNT_ADDRESS, out account);
+        Mail.Backend.Account? account = null;
+        list_model.get(iter, 1, out account);
         return account;
     }
     
@@ -125,13 +122,12 @@ public class AccountDialogAccountListPane : AccountDialogPane {
             GearyApplication.instance.controller.get_num_accounts() > 1;
     }
     
-    private void on_account_added(Geary.AccountInformation account) {
-        Gtk.TreeIter? iter = list_contains(account.email);
-        if (iter != null)
-            return; // Already listed.
-        
-        add_account_to_list(account.nickname, account.email);
-        account.notify.connect(on_account_changed);
+    private void on_account_added(Mail.Backend.Account account) {
+        Gtk.TreeIter iter;
+        list_model.append(out iter);
+        list_model.set(iter, 0, account.service.get_display_name ());
+        list_model.set(iter, 1, account);
+        //account.notify.connect(on_account_changed);
         update_buttons();
         update_ordinals();
     }
@@ -141,15 +137,6 @@ public class AccountDialogAccountListPane : AccountDialogPane {
         account.notify.disconnect(on_account_changed);
         update_buttons();
         update_ordinals();
-    }
-    
-    // Adds an account to the list.
-    // Note: does NOT check if the account is already listed.
-    private void add_account_to_list(string nickname, string address) {
-        Gtk.TreeIter iter;
-        list_model.append(out iter);
-        list_model.set(iter, Column.ACCOUNT_NICKNAME, nickname);
-        list_model.set(iter, Column.ACCOUNT_ADDRESS, address);
     }
     
     // Removes an account on the list.
@@ -173,7 +160,7 @@ public class AccountDialogAccountListPane : AccountDialogPane {
             return;
         
         // Since nickname is the only column that can change, just set it.
-        list_model.set_value(iter, Column.ACCOUNT_NICKNAME, account.nickname);
+        list_model.set_value(iter, 0, account.nickname);
     }
     
     // Returns TreeIter of the address in the account list, else null.
@@ -185,7 +172,7 @@ public class AccountDialogAccountListPane : AccountDialogPane {
         
         do {
             string list_address = "";
-            list_model.get(iter, Column.ACCOUNT_ADDRESS, out list_address);
+            list_model.get(iter, 0, out list_address);
             if (list_address == address)
                 return iter;
         } while (list_model.iter_next(ref iter));
@@ -211,7 +198,7 @@ public class AccountDialogAccountListPane : AccountDialogPane {
         int i = 0;
         do {
             string? list_address = null;
-            list_model.get(iter, Column.ACCOUNT_ADDRESS, out list_address);
+            list_model.get(iter, 0, out list_address);
             if (list_address != null) {
                 Geary.AccountInformation account = all_accounts.get(list_address);
                 

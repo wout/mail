@@ -20,6 +20,7 @@ int main(string[] args) {
     Environment.set_variable("G_TLS_GNUTLS_PRIORITY", "NORMAL:%COMPAT:%LATEST_RECORD_VERSION:!VERS-SSL3.0", false);
 #endif
     
+    Camel.debug_init ();
     GearyApplication app = new GearyApplication();
     
     int ec = app.run(args);

@@ -251,12 +251,15 @@ public class GearyController : Geary.BaseObject {
         save_revokable(null, null);
 
         // Start Geary.
+        var session = Mail.Backend.Session.get_default ();
+        yield session.start ();
+        if (session.get_accounts ().is_empty) {
+            create_account();
+        }
+
         try {
             yield Geary.Engine.instance.open_async(GearyApplication.instance.get_user_data_directory(),
                 GearyApplication.instance.get_resource_directory(), new SecretMediator());
-            if (Geary.Engine.instance.get_accounts().size == 0) {
-                create_account();
-            }
         } catch (Error e) {
             error("Error opening Geary.Engine instance: %s", e.message);
         }
@@ -1859,9 +1862,9 @@ public class GearyController : Geary.BaseObject {
                 return;
             }
 
-            if (((ConversationWidget) child).email.id in emails) {
+            /*if (((ConversationWidget) child).email.id in emails) {
                 ((ConversationWidget) child).forced_unread = flags.is_unread();
-            }
+            }*/
         });
     }
 

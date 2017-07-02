@@ -22,9 +22,6 @@
 
 public class Mail.FolderSourceItem : Granite.Widgets.SourceList.Item {
     public string full_name;
-    // Replace them with the ones from libcamel once they are available in the .vapi
-    private const int CAMEL_FOLDER_TYPE_BIT = 10;
-    private const int CAMEL_FOLDER_TYPE_MASK = 0x3F << CAMEL_FOLDER_TYPE_BIT;
 
     public FolderSourceItem (Camel.FolderInfo folderinfo) {
         name = folderinfo.display_name;
@@ -33,7 +30,7 @@ public class Mail.FolderSourceItem : Granite.Widgets.SourceList.Item {
             badge = "%d".printf (folderinfo.unread);
         }
 
-        switch (folderinfo.flags & CAMEL_FOLDER_TYPE_MASK) {
+        switch (folderinfo.flags & Camel.FOLDER_TYPE_MASK) {
             case Camel.FolderInfoFlags.TYPE_INBOX:
                 icon = new ThemedIcon ("mail-inbox");
                 break;
