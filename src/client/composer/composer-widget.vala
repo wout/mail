@@ -1309,12 +1309,7 @@ public class ComposerWidget : Gtk.EventBox {
             foreach (File file in dialog.get_files ()) {
                 try {
                     add_attachment (file, Geary.Mime.DispositionType.INLINE);
-                    this.editor.get_dom_document ().exec_command ("insertHTML",
-                        false,
-                        "<img style=\"max-width: 100%\" src=\"%s\">".printf (
-                            this.editor_allow_prefix + file.get_uri ()
-                        )
-                    );
+                    // TODO: Re-implement this
                 } catch (Error err) {
                     attachment_failed (err.message);
                     break;
@@ -1899,32 +1894,6 @@ public class ComposerWidget : Gtk.EventBox {
         cc_entry.completion = new ContactEntryCompletion(contact_list_store);
         bcc_entry.completion = new ContactEntryCompletion(contact_list_store);
         reply_to_entry.completion = new ContactEntryCompletion(contact_list_store);
-    }
-
-    private void on_resource_request_starting (WebKit.WebFrame web_frame,
-                                               WebKit.WebResource web_resource,
-                                               WebKit.NetworkRequest request,
-                                               WebKit.NetworkResponse? response) {
-        if (response != null) {
-            // A request that was previously approved resulted in a redirect.
-            return;
-        }
-
-        const string CID_PREFIX = "cid:";
-        const string ABOUT_BLANK = "about:blank";
-
-        string? req_uri = request.get_uri ();
-        string resp_url = ABOUT_BLANK;
-        if (req_uri.has_prefix (CID_PREFIX)) {
-            File? file = this.cid_files[req_uri.substring (CID_PREFIX.length)];
-            if (file != null) {
-                resp_url = file.get_uri ();
-            }
-        } else if (req_uri.has_prefix (editor_allow_prefix)) {
-            resp_url = req_uri.substring (editor_allow_prefix.length);
-        }
-        request.set_uri (resp_url);
-    }
-    
+    }    
 }
 
