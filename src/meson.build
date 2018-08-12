@@ -16,6 +16,7 @@ vala_files = [
     'FoldersView/AccountSourceItem.vala',
     'FoldersView/FoldersListView.vala',
     'FoldersView/FolderSourceItem.vala',
+    'ConversationList/ConversationItemModel.vala',
     'ConversationList/ConversationListBox.vala',
     'ConversationList/ConversationListItem.vala',
     'MessageList/MessageListBox.vala',
